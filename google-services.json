@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "51139952511",
+    "project_id": "nosso-dindin-4bdab",
+    "storage_bucket": "nosso-dindin-4bdab.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:51139952511:android:aea3f411f7e6b34c06644a",
+        "android_client_info": {
+          "package_name": "com.nossodindin.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDctdzGGlrX_Ke_DDA7RCdP4djllcRZZw0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
