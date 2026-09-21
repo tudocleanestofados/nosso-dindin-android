@@ -1,0 +1,42 @@
+name: Gerar APK Nosso Dindin
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Criar projeto Android
+        run: npx cap add android
+
+      - name: Sincronizar aplicativo
+        run: npx cap sync android
+
+      - name: Gerar APK de teste
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nosso-Dindin-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
