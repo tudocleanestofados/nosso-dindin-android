@@ -1,0 +1,8 @@
+{
+  "appId": "com.nossodindin.app",
+  "appName": "Nosso Dindin",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}
