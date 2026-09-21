@@ -28,21 +28,22 @@ jobs:
           test -f capacitor.config.json
           test -f www/index.html
           test -f icon.png
+          test -f google-services.json
           echo "Arquivos principais encontrados."
 
       - name: Instalar dependencias
         run: npm install
 
-      - name: Instalar gerador de icones
-        run: npm install --save-dev @capacitor/assets
+      - name: Criar projeto Android
+        run: npx cap add android
+
+      - name: Adicionar configuracao Firebase
+        run: cp google-services.json android/app/google-services.json
 
       - name: Preparar imagem do icone
         run: |
           mkdir -p assets
           cp icon.png assets/icon.png
-
-      - name: Criar projeto Android
-        run: npx cap add android
 
       - name: Gerar icones Android
         run: npx @capacitor/assets generate --android
