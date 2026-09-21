@@ -5823,5 +5823,141 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
 })();
 </script>
 
+
+<script id="v55-native-push">
+/* V55 — notificações push Android.
+   No navegador comum este bloco não interfere no funcionamento do app. */
+(function(){
+  let pushPlugin=null;
+  let listenersReady=false;
+  let starting=false;
+
+  function getPushPlugin(){
+    try{
+      if(pushPlugin) return pushPlugin;
+      const cap=window.Capacitor;
+      if(!cap) return null;
+      if(typeof cap.registerPlugin==="function"){
+        pushPlugin=cap.registerPlugin("PushNotifications");
+      }else if(cap.Plugins?.PushNotifications){
+        pushPlugin=cap.Plugins.PushNotifications;
+      }
+      return pushPlugin;
+    }catch(e){
+      console.warn("Push indisponível:",e);
+      return null;
+    }
+  }
+
+  async function savePushToken(value){
+    if(!value || !supabaseClient || !currentUser || !GROUP_ID) return;
+    window.__nossoDindinPushToken=value;
+    const {error}=await supabaseClient.rpc("register_push_device",{
+      p_group_id:GROUP_ID,
+      p_token:value,
+      p_platform:"android"
+    });
+    if(error) console.error("Não foi possível registrar o aparelho para notificações:",error);
+  }
+
+  async function openPushDestination(notification){
+    try{
+      const section=notification?.notification?.data?.section || notification?.data?.section || "notificationsSection";
+      sessionStorage.setItem("nosso_dindin_active_section",section);
+      setTimeout(()=>{
+        try{
+          const btn=[...document.querySelectorAll(".nav button")].find(b=>(b.getAttribute("onclick")||"").includes(section));
+          showSection(section,btn);
+          if(section==="notificationsSection"){
+            loadDueNotifications();
+            loadMovementAlerts();
+          }
+        }catch(e){}
+      },250);
+    }catch(e){}
+  }
+
+  async function setupListeners(Push){
+    if(listenersReady) return;
+    listenersReady=true;
+
+    await Push.addListener("registration",async token=>{
+      await savePushToken(token?.value||"");
+    });
+
+    await Push.addListener("registrationError",err=>{
+      console.error("Erro ao registrar notificações:",err?.error||err);
+    });
+
+    await Push.addListener("pushNotificationReceived",notification=>{
+      console.log("Notificação recebida:",notification);
+    });
+
+    await Push.addListener("pushNotificationActionPerformed",openPushDestination);
+  }
+
+  async function initNossoDindinPush(){
+    if(starting || !currentUser || !GROUP_ID) return;
+    const Push=getPushPlugin();
+    if(!Push) return;
+
+    starting=true;
+    try{
+      await setupListeners(Push);
+
+      try{
+        await Push.createChannel({
+          id:"nosso_dindin",
+          name:"Nosso Dindin",
+          description:"Movimentações financeiras e lembretes de vencimento",
+          importance:5,
+          visibility:1,
+          vibration:true
+        });
+      }catch(e){}
+
+      let permission=await Push.checkPermissions();
+      if(permission?.receive==="prompt" || permission?.receive==="prompt-with-rationale"){
+        permission=await Push.requestPermissions();
+      }
+      if(permission?.receive!=="granted"){
+        console.warn("Permissão de notificações não concedida.");
+        return;
+      }
+
+      await Push.register();
+    }catch(e){
+      console.error("Falha ao iniciar notificações:",e);
+    }finally{
+      starting=false;
+    }
+  }
+
+  const previousRefreshAuthUI=window.refreshAuthUI;
+  if(typeof previousRefreshAuthUI==="function"){
+    window.refreshAuthUI=async function(){
+      const result=await previousRefreshAuthUI.apply(this,arguments);
+      if(currentUser && GROUP_ID) setTimeout(initNossoDindinPush,250);
+      return result;
+    };
+  }
+
+  const previousSignOut=window.signOut;
+  if(typeof previousSignOut==="function"){
+    window.signOut=async function(){
+      try{
+        const token=window.__nossoDindinPushToken;
+        if(token && supabaseClient && currentUser){
+          await supabaseClient.rpc("unregister_push_device",{p_token:token});
+        }
+      }catch(e){}
+      return previousSignOut.apply(this,arguments);
+    };
+  }
+
+  window.addEventListener("load",()=>setTimeout(initNossoDindinPush,700));
+})();
+</script>
+
 </body>
 </html>
