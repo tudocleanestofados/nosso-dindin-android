@@ -5676,5 +5676,152 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
 })();
 </script>
 
+
+<style id="v54-android-auth-fit">
+/* V54 — ajuste exclusivo da tela pública/login para Android e telas baixas.
+   Mantém as demais telas e funções da V53 inalteradas. */
+#publicWelcome{
+  height:100dvh!important;
+  min-height:100dvh!important;
+  box-sizing:border-box!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  -webkit-overflow-scrolling:touch;
+  align-items:flex-start!important;
+  padding-top:max(16px, env(safe-area-inset-top))!important;
+  padding-bottom:max(16px, env(safe-area-inset-bottom))!important;
+}
+#publicWelcome .welcome-card{
+  flex:0 0 auto!important;
+  margin-block:auto!important;
+  box-sizing:border-box!important;
+}
+
+/* Em celulares, WebView/landscape e janelas com pouca altura,
+   compacta somente a autenticação para que o botão final fique acessível. */
+@media (max-width:800px), (max-height:760px){
+  #publicWelcome{
+    padding-left:max(14px, env(safe-area-inset-left))!important;
+    padding-right:max(14px, env(safe-area-inset-right))!important;
+  }
+  #publicWelcome .welcome-card{
+    width:min(460px,100%)!important;
+    padding:22px 20px!important;
+    border-radius:18px!important;
+  }
+  #publicWelcome .welcome-mark{
+    width:54px!important;
+    height:54px!important;
+    border-radius:16px!important;
+    margin-bottom:12px!important;
+    font-size:24px!important;
+  }
+  #publicWelcome .welcome-card h1{
+    font-size:26px!important;
+    margin-bottom:5px!important;
+  }
+  #publicWelcome .welcome-card p{
+    margin-bottom:18px!important;
+    line-height:1.35!important;
+  }
+  #publicWelcome .welcome-actions{
+    gap:8px!important;
+  }
+  #publicWelcome .welcome-actions button{
+    min-height:43px!important;
+  }
+  #publicWelcome .welcome-login-form{
+    margin-top:15px!important;
+    padding-top:14px!important;
+  }
+  #publicWelcome .welcome-login-form label{
+    margin:8px 0 4px!important;
+  }
+  #publicWelcome .welcome-login-form input{
+    padding:11px!important;
+  }
+  #publicWelcome .welcome-error{
+    margin-top:7px!important;
+    min-height:16px!important;
+  }
+  #publicWelcome #v18Submit{
+    min-height:43px!important;
+  }
+  #publicWelcome #v26ForgotBtn{
+    margin-top:7px!important;
+  }
+}
+
+/* Ajuste extra para landscape/altura muito reduzida, como emuladores Android. */
+@media (max-height:620px){
+  #publicWelcome .welcome-card{
+    padding:16px 18px!important;
+  }
+  #publicWelcome .welcome-mark{
+    width:46px!important;
+    height:46px!important;
+    margin-bottom:8px!important;
+    font-size:21px!important;
+  }
+  #publicWelcome .welcome-card h1{font-size:23px!important}
+  #publicWelcome .welcome-card p{
+    margin-bottom:12px!important;
+    font-size:14px!important;
+  }
+  #publicWelcome .welcome-actions{gap:6px!important}
+  #publicWelcome .welcome-actions button{min-height:40px!important}
+  #publicWelcome .welcome-login-form{
+    margin-top:11px!important;
+    padding-top:10px!important;
+  }
+  #publicWelcome .welcome-login-form label{
+    margin:6px 0 3px!important;
+  }
+  #publicWelcome .welcome-login-form input{
+    padding:9px 10px!important;
+  }
+}
+</style>
+
+<script id="v54-android-auth-fit-script">
+(function(){
+  function keepAuthControlVisible(el){
+    if(!el) return;
+    setTimeout(function(){
+      try{ el.scrollIntoView({behavior:'smooth', block:'center', inline:'nearest'}); }catch(_){}
+    }, 180);
+  }
+
+  window.addEventListener('load', function(){
+    ['v18Email','v18Password'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.addEventListener('focus', function(){ keepAuthControlVisible(el); });
+    });
+
+    var form=document.getElementById('v18LoginForm');
+    if(form){
+      var observer=new MutationObserver(function(){
+        if(form.classList.contains('open')){
+          setTimeout(function(){
+            var email=document.getElementById('v18Email');
+            if(email) keepAuthControlVisible(email);
+          },80);
+        }
+      });
+      observer.observe(form,{attributes:true,attributeFilter:['class']});
+    }
+  });
+
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', function(){
+      var active=document.activeElement;
+      if(active && (active.id==='v18Email' || active.id==='v18Password')){
+        keepAuthControlVisible(active);
+      }
+    });
+  }
+})();
+</script>
+
 </body>
 </html>
