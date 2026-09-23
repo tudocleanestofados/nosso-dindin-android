@@ -31,9 +31,28 @@ jobs:
         run: |
           test -f package.json
           test -f capacitor.test.config.json
-          test -f www/index.html
           test -f icon.png
           test -f google-services.json
+
+      - name: Criar launcher local do ambiente online
+        run: |
+          mkdir -p test-www
+          cat > test-www/index.html <<'EOF'
+          <!doctype html>
+          <html lang="pt-BR">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Nosso Dindin Teste</title>
+          </head>
+          <body>
+            <p>Abrindo ambiente de teste...</p>
+            <script>
+              location.replace('https://tudocleanestofados.github.io/nosso-dindin-android/');
+            </script>
+          </body>
+          </html>
+          EOF
 
       - name: Usar configuracao do APK de teste
         run: cp capacitor.test.config.json capacitor.config.json
