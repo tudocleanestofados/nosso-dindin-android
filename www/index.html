@@ -5971,6 +5971,17 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
   async function savePushToken(value){
     if(!value || !supabaseClient || !currentUser || !GROUP_ID) return;
     window.__nossoDindinPushToken=value;
+
+    /* O APK de teste carrega pelo GitHub Pages. Para evitar notificação
+       duplicada no mesmo celular, ele não mantém um token push ativo.
+       As notificações continuam chegando no app oficial, com o mesmo
+       conteúdo gerado pelo backend. */
+    if(location.hostname==="tudocleanestofados.github.io"){
+      const {error}=await supabaseClient.rpc("unregister_push_device",{p_token:value});
+      if(error) console.error("Não foi possível desativar push no app de teste:",error);
+      return;
+    }
+
     const {error}=await supabaseClient.rpc("register_push_device",{
       p_group_id:GROUP_ID,
       p_token:value,
