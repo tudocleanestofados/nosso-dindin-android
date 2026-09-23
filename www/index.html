@@ -7534,5 +7534,91 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 })();
 </script>
 
+
+<script id="v68-user-greeting-fix">
+(function(){
+  function titleCaseName(v){
+    return String(v||'').trim().toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
+  }
+
+  function fallbackNameFromEmail(){
+    const email=String(currentUser?.email||'').trim().toLowerCase();
+    if(email==='monica.provasi@gmail.com') return 'Monica Provasi';
+    if(email==='rildoomatos@gmail.com') return 'Rildo Matos';
+
+    const local=email.split('@')[0].replace(/[._-]+/g,' ').trim();
+    return local ? titleCaseName(local) : 'Usuário';
+  }
+
+  window.userDisplayName=function(){
+    const uid=currentUser?.id||'';
+    const email=String(currentUser?.email||'').trim().toLowerCase();
+    const key=uid ? 'finance_profile_name_'+uid : '';
+
+    let saved=key ? String(localStorage.getItem(key)||'').trim() : '';
+
+    // Remove migração incorreta antiga: Monica não pode herdar o nome do Rildo.
+    if(email==='monica.provasi@gmail.com' && /^rildo\b/i.test(saved)){
+      localStorage.removeItem(key);
+      saved='';
+    }
+
+    if(saved) return saved;
+    return fallbackNameFromEmail();
+  };
+
+  window.userInitials=function(){
+    return userDisplayName()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0,2)
+      .map(x=>x[0])
+      .join('')
+      .toUpperCase();
+  };
+
+  window.updateGreeting=function(){
+    const h=new Date().getHours();
+    const sal=h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';
+    const name=userDisplayName();
+
+    const el=document.querySelector('.greeting h1');
+    if(el) el.textContent=`${sal}, ${name}!`;
+
+    document.querySelectorAll('.avatar.profile-click').forEach(x=>{
+      if(!x.style.backgroundImage) x.textContent=userInitials();
+    });
+
+    const side=document.querySelector('button.profile.profile-click span');
+    if(side && !side.style.backgroundImage) side.textContent=userInitials();
+
+    const sn=document.getElementById('sideProfileName');
+    if(sn) sn.textContent=name;
+
+    const mobile=document.querySelector('.ndm-mobile-profile b');
+    if(mobile) mobile.textContent=name;
+  };
+
+  async function syncGreetingFromSession(){
+    try{
+      const {data}=await supabaseClient.auth.getSession();
+      if(data?.session?.user) currentUser=data.session.user;
+    }catch(_){}
+    try{
+      updateGreeting();
+      renderProfilePhoto();
+    }catch(_){}
+  }
+
+  supabaseClient.auth.onAuthStateChange(function(){
+    setTimeout(syncGreetingFromSession,80);
+  });
+
+  window.addEventListener('load',function(){
+    setTimeout(syncGreetingFromSession,350);
+  });
+})();
+</script>
+
 </body>
 </html>
