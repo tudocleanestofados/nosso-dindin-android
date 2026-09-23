@@ -3821,9 +3821,11 @@ function renderGoals(){
 async function loadDueNotifications(){
  const box=document.getElementById("notificationList"); if(!box)return;
  if(!currentUser||!GROUP_ID){box.innerHTML="<small>Faça login e configure o grupo.</small>";return;}
- box.innerHTML="<small>Carregando...</small>";
+ box.innerHTML="<small>Carregando vencimentos...</small>";
  try{
-  const {data,error}=await supabaseClient.rpc("get_my_due_notifications",{p_group_id:GROUP_ID}); if(error)throw error;
+  const req=supabaseClient.rpc("get_my_due_notifications",{p_group_id:GROUP_ID});
+  const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error("A consulta demorou mais de 12 segundos.")),12000));
+  const {data,error}=await Promise.race([req,timeout]); if(error)throw error;
   const rows=Array.isArray(data)?data:[];
   if(!rows.length){box.innerHTML="<small>Nenhum vencimento próximo.</small>";return;}
   box.innerHTML=rows.map(x=>{const d=new Date(String(x.due_date)+"T12:00:00").toLocaleDateString("pt-BR");
@@ -3836,10 +3838,10 @@ function escapeNotificationText(v){return String(v??"").replace(/&/g,"&amp;").re
 async function loadMovementAlerts(){
  const box=document.getElementById("movementAlertList"); if(!box)return;
  if(!currentUser||!GROUP_ID){box.innerHTML="<small>Faça login e configure o grupo.</small>";return;}
- box.innerHTML="<small>Carregando...</small>";
+ box.innerHTML="<small>Carregando movimentações...</small>";
  try{
   const request=supabaseClient.rpc("get_my_movement_alerts",{p_group_id:GROUP_ID,p_limit:20});
-  const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error("Tempo de resposta excedido. Toque em Atualizar avisos.")),12000));
+  const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error("A consulta demorou mais de 12 segundos.")),12000));
   const {data,error}=await Promise.race([request,timeout]); if(error)throw error;
   const rows=Array.isArray(data)?data:[];
   if(!rows.length){box.innerHTML="<small>Nenhuma movimentação nova registrada ainda.</small>";return;}
@@ -4273,7 +4275,7 @@ function renderVaultSummary(){
  let card=document.getElementById('vaultSummaryCard');
  if(!card){card=document.createElement('div');card.id='vaultSummaryCard';card.className='card';box.prepend(card)}
  const free=vaultFreeBalance(), total=vaultTotal();
- card.innerHTML=`<div class="row"><div><h3 style="margin:0">Cofrinho</h3><small>Total guardado</small><div style="font-size:24px;font-weight:800;margin-top:4px">${money(total)}</div></div><button onclick="openVaultModal()">Guardar dinheiro</button></div>
+ card.innerHTML=`<div class="row"><div class="v61-vault-head"><span class="v61-vault-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 9c0-3.2 2.8-5.5 7-5.5s7 2.3 7 5.5v.8c1.2.8 2 2.2 2 3.8V18h-3v2h-3v-2H9v2H6v-2H3v-4.4c0-1.7.7-3.1 2-3.9V9z"/><path d="M8.5 8h7M7.5 12h1M15.5 12h1M12 9.5v5M10.5 11h3"/></svg></span><div><h3 style="margin:0">Cofrinho</h3><small>Total guardado</small><div style="font-size:24px;font-weight:800;margin-top:4px">${money(total)}</div></div></div><button onclick="openVaultModal()">Guardar dinheiro</button></div>
  <div style="margin-top:10px"><b>Livre:</b> ${money(free)}</div>
  ${financialGoals.map(g=>`<div style="margin-top:5px"><b>${escapeHtml(g.name)}:</b> ${money(Number(g.current_amount||0))}</div>`).join('')}`;
 }
@@ -5169,6 +5171,7 @@ document.getElementById("deleteMyAccountBtn")?.addEventListener("click",v28Delet
     const root=document.getElementById("goalsList");
     if(!root) return;
     [...root.querySelectorAll(".card, .goal-card, [data-goal-id]")].forEach(card=>{
+      if(card.id==="vaultSummaryCard") return;
       const title=card.querySelector("h3,h4,strong,.goal-title")?.textContent||card.textContent||"";
       let icon=card.querySelector(".goal-icon");
       if(icon) icon.textContent=pick(title);
@@ -6557,6 +6560,59 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
   }
 })();
 </script>
+
+<script id="v61-notification-open-hook">
+(function(){
+  const previousShowSectionV61=window.showSection;
+  if(typeof previousShowSectionV61==='function'){
+    window.showSection=function(id,button){
+      const result=previousShowSectionV61.apply(this,arguments);
+      if(id==='notificationsSection'){
+        setTimeout(()=>{
+          try{ if(typeof loadDueNotifications==='function') loadDueNotifications(); }catch(e){ console.error(e); }
+          try{ if(typeof loadMovementAlerts==='function') loadMovementAlerts(); }catch(e){ console.error(e); }
+        },50);
+      }
+      return result;
+    };
+  }
+
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible' &&
+       !document.getElementById('notificationsSection')?.classList.contains('hidden')){
+      try{ loadDueNotifications(); }catch(e){}
+      try{ loadMovementAlerts(); }catch(e){}
+    }
+  });
+})();
+</script>
+
+<style id="v61-vault-fix">
+#vaultSummaryCard .v61-vault-head{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+#vaultSummaryCard .v61-vault-icon{
+  display:grid;
+  place-items:center;
+  width:44px;
+  height:44px;
+  flex:0 0 44px;
+  border-radius:12px;
+  background:#fff3dc;
+  color:#e39a12;
+}
+#vaultSummaryCard .v61-vault-icon svg{
+  width:27px;
+  height:27px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+</style>
 
 
 <style id="v60-goals-notifications-fixes">
