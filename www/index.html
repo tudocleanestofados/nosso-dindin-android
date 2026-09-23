@@ -5573,6 +5573,14 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
  };
  const items=[['dashboardSection',0,'home','Início'],['transactionsSection',1,'tx','Lançamentos'],['cardsSection',2,'card','Cartões'],['accountsSection',3,'bank','Contas'],['goalsSection',4,'goal','Metas'],['reportsSection',5,'report','Relatórios'],['notificationsSection',6,'bell','Avisos'],['assistantSection',7,'spark','Assistente'],['settingsSection',8,'gear','Configurações']];
  function nav(section,index){
+   /* Ao trocar de tela pelo menu mobile, fecha o lançamento rápido.
+      Assim o modal não fica sobreposto à próxima seção. */
+   const txModal=document.getElementById('transactionModal');
+   if(txModal && !txModal.classList.contains('hidden')){
+     if(typeof closeTransactionModal==='function') closeTransactionModal();
+     else txModal.classList.add('hidden');
+   }
+
    const o=document.querySelectorAll('.nav button')[index]||null;
    if(typeof showSection==='function')showSection(section,o);
    document.querySelectorAll('.ndm-bottom button[data-section],.ndm-nav button[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===section));
@@ -6382,7 +6390,7 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
     roots.forEach(root=>{
       [...root.querySelectorAll('.account')].forEach((row,index)=>{
         if(row.dataset.v57Icons==='1') return;
-        const account=(Array.isArray(window.accounts)?window.accounts:[])[index];
+        const account=((typeof accounts!=='undefined'&&Array.isArray(accounts))?accounts:[])[index];
         const info=row.firstElementChild;
         if(!account||!info) return;
         const title=info.querySelector(':scope > strong');
@@ -6408,7 +6416,7 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
     if(!root) return;
     [...root.querySelectorAll(':scope > .card')].forEach((card,index)=>{
       if(card.dataset.v57Icons==='1') return;
-      const goal=(Array.isArray(window.financialGoals)?window.financialGoals:[])[index];
+      const goal=((typeof financialGoals!=='undefined'&&Array.isArray(financialGoals))?financialGoals:[])[index];
       const info=card.querySelector('.row > div:first-child');
       if(!goal||!info) return;
       info.classList.add('v57-goal-info');
@@ -6508,6 +6516,19 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
     setTimeout(applyAll,120);
   }
   window.addEventListener('load',()=>setTimeout(applyAll,700));
+
+  const oldRenderAllForV59=window.renderAll;
+  if(typeof oldRenderAllForV59==='function'){
+    window.renderAll=function(){
+      const r=oldRenderAllForV59.apply(this,arguments);
+      setTimeout(()=>{
+        decorateAccounts();
+        decorateGoals();
+        syncMobileProfile();
+      },0);
+      return r;
+    };
+  }
 })();
 </script>
 
