@@ -1748,7 +1748,7 @@ body.auth-required main{visibility:hidden !important}
     <section id="notificationsSection" class="hidden">
 <div class="card"><h3>Avisos de vencimento</h3><small>Contas pendentes com vencimento próximo.</small>
 <div id="notificationList" style="margin-top:12px"><small>Carregando...</small></div>
-<button onclick="loadDueNotifications()" style="margin-top:10px">Atualizar avisos</button></div>
+<button class="nd-refresh-btn" onclick="loadDueNotifications()">Atualizar avisos</button></div>
 <div class="card"><h3>Movimentações recentes</h3><small>Alertas dos últimos 3 dias. Avisos mais antigos deixam de aparecer automaticamente.</small>
 <div id="movementAlertList" style="margin-top:12px"><small>Carregando...</small></div>
 <button onclick="loadMovementAlerts()" style="margin-top:10px">Atualizar movimentações</button></div></section>
@@ -4290,7 +4290,7 @@ function renderVaultSummary(){
  let card=document.getElementById('vaultSummaryCard');
  if(!card){card=document.createElement('div');card.id='vaultSummaryCard';card.className='card';box.prepend(card)}
  const free=vaultFreeBalance(), total=vaultTotal();
- card.innerHTML=`<div class="row"><div class="nd-vault-head"><span class="nd-vault-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 9c0-3.2 2.8-5.5 7-5.5s7 2.3 7 5.5v.8c1.2.8 2 2.2 2 3.8V18h-3v2h-3v-2H9v2H6v-2H3v-4.4c0-1.7.7-3.1 2-3.9V9z"/><path d="M8.5 8h7M7.5 12h1M15.5 12h1M12 9.5v5M10.5 11h3"/></svg></span><div><h3 style="margin:0">Cofrinho</h3><small>Total guardado</small><div style="font-size:24px;font-weight:800;margin-top:4px">${money(total)}</div></div></div><button onclick="openVaultModal()">Guardar dinheiro</button></div>
+ card.innerHTML=`<div class="row"><div class="nd-vault-head"><span class="nd-vault-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5.5 10.5c0-3.1 2.8-5.5 6.7-5.5 2 0 3.8.7 5 1.9H21v4h-2.2c-.4 1.8-1.5 3.3-3.1 4.2V18h-2v-2H9.2v2h-2v-3.1c-1.1-1-1.7-2.5-1.7-4.4Z"/><path d="M10 5.2V3.7c1.4 0 2.7.4 3.7 1.2M5.5 11H3V9h2.7M16.2 9h.01"/></svg></span><div><h3 style="margin:0">Cofrinho</h3><small>Total guardado</small><div style="font-size:24px;font-weight:800;margin-top:4px">${money(total)}</div></div></div><button onclick="openVaultModal()">Guardar dinheiro</button></div>
  <div style="margin-top:10px"><b>Livre:</b> ${money(free)}</div>
  ${financialGoals.map(g=>`<div style="margin-top:5px"><b>${escapeHtml(g.name)}:</b> ${money(Number(g.current_amount||0))}</div>`).join('')}`;
 }
@@ -6557,12 +6557,17 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
 <style id="nd-direct-fixes">
 #vaultSummaryCard .nd-vault-head{display:flex;align-items:center;gap:12px}
 #vaultSummaryCard .nd-vault-icon{
-  display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;
-  border-radius:12px;background:#fff3dc;color:#e39a12
+  display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;
+  border-radius:11px;background:#eaf3ff;color:#2878dc
 }
 #vaultSummaryCard .nd-vault-icon svg{
-  width:27px;height:27px;fill:none;stroke:currentColor;stroke-width:1.8;
+  width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;
   stroke-linecap:round;stroke-linejoin:round
+}
+#notificationsSection .nd-refresh-btn{
+  display:block;
+  clear:both;
+  margin-top:24px!important;
 }
 </style>
 
