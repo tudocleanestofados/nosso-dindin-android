@@ -3134,6 +3134,9 @@ function openTransactionModal(){
         "transactionModal"
     ).classList.remove("hidden");
 
+    document.documentElement.classList.add("nd-transaction-open");
+    document.body.classList.add("nd-transaction-open");
+
 }
 
 
@@ -3142,6 +3145,9 @@ function closeTransactionModal(){
     document.getElementById(
         "transactionModal"
     ).classList.add("hidden");
+
+    document.documentElement.classList.remove("nd-transaction-open");
+    document.body.classList.remove("nd-transaction-open");
 
 }
 
@@ -6074,32 +6080,72 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
 
 
 <style id="v56-transaction-mobile-fix">
-/* V56 — corrige cadastro parcelado e rolagem do modal de lançamento no Android. */
+/* Lançamento mobile em tela inteira, sem movimentar o conteúdo por trás. */
 @media (max-width:800px){
+  html.nd-transaction-open,
+  body.nd-transaction-open{
+    overflow:hidden!important;
+    overscroll-behavior:none!important;
+    touch-action:none;
+    height:100%!important;
+  }
+
   #transactionModal{
-    align-items:flex-start!important;
-    overflow-y:auto!important;
-    -webkit-overflow-scrolling:touch;
-    padding:
-      max(12px, env(safe-area-inset-top))
-      12px
-      calc(100px + env(safe-area-inset-bottom))!important;
+    position:fixed!important;
+    inset:0!important;
+    z-index:5000!important;
+    display:block!important;
+    width:100vw!important;
+    height:100dvh!important;
+    padding:0!important;
+    margin:0!important;
+    background:var(--surface,#fff)!important;
+    overflow:hidden!important;
+    overscroll-behavior:contain!important;
+  }
+
+  #transactionModal.hidden{
+    display:none!important;
   }
 
   #transactionModal .modal-content{
+    width:100%!important;
+    max-width:none!important;
+    min-height:100dvh!important;
+    height:100dvh!important;
     max-height:none!important;
-    overflow:visible!important;
-    margin:0 auto!important;
-    padding-bottom:26px!important;
+    margin:0!important;
+    border-radius:0!important;
+    padding:
+      calc(18px + var(--nd-safe-top, env(safe-area-inset-top,0px)))
+      max(20px,var(--nd-safe-right, env(safe-area-inset-right,0px)))
+      calc(28px + var(--nd-safe-bottom, env(safe-area-inset-bottom,0px)))
+      max(20px,var(--nd-safe-left, env(safe-area-inset-left,0px)))!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain!important;
+    background:var(--surface,#fff)!important;
+  }
+
+  #transactionModal .close{
+    position:sticky;
+    top:0;
+    z-index:2;
+    float:right;
+    margin:-4px -4px 4px 8px;
   }
 
   #transactionModal #txForm{
-    padding-bottom:12px;
+    padding-bottom:24px;
   }
 
   #transactionModal #txCardFields .row,
   #transactionModal #txRegularFields .row{
     align-items:stretch;
+  }
+
+  #transactionModal .flow-choice{
+    margin-top:18px;
   }
 }
 </style>
