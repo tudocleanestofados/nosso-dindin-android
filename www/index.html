@@ -1612,10 +1612,31 @@ body.auth-required main{visibility:hidden !important}
     </section>
 
     <section id="cardsSection" class="hidden">
-      <div class="card"><div class="row"><h3 style="flex:2">Cartões de crédito</h3><button class="primary" onclick="openCardModal()">+ Cartão</button></div></div>
-      <div class="card"><div id="cardsList"></div></div>
-      <div class="card"><div class="row"><h3 style="flex:2">Compras no cartão</h3><button class="primary" onclick="openPurchaseModal()">+ Compra</button></div><br><div id="cardPurchasesList"></div></div>
-      <div class="card"><h3>Faturas atuais e próximas</h3><br><div id="invoicesList"></div></div>
+      <div class="card nd-cards-head">
+        <div class="row">
+          <h3 style="flex:2">Cartões de crédito</h3>
+          <div class="nd-cards-actions">
+            <button class="secondary" onclick="openCardModal()">+ Cartão</button>
+            <button class="primary" onclick="openPurchaseModal()">+ Compra</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card nd-card-month-summary">
+        <small>Resumo geral do mês</small>
+        <strong id="cardMonthTotal">R$ 0,00</strong>
+        <span id="cardMonthLabel">Total gasto nos cartões</span>
+      </div>
+
+      <div class="card nd-my-cards">
+        <h3>Meus cartões</h3>
+        <div id="cardsList" style="margin-top:12px"></div>
+      </div>
+
+      <div id="cardsDetailedOverview"></div>
+
+      <div id="cardPurchasesList" class="hidden" aria-hidden="true"></div>
+      <div id="invoicesList" class="hidden" aria-hidden="true"></div>
     </section>
 
     <section id="accountsSection" class="hidden">
@@ -3726,10 +3747,138 @@ async function saveCardPurchase(){
  if(error){alert("Erro ao salvar compra: "+error.message);return;} closePurchaseModal(); await loadCloudData(); renderAll();
 }
 function renderCards(){
- const list=document.getElementById("cardsList"), purchases=document.getElementById("cardPurchasesList"), invoices=document.getElementById("invoicesList"); if(!list)return;
- if(!creditCards.length) list.innerHTML="<small>Nenhum cartão cadastrado.</small>"; else list.innerHTML=creditCards.map(c=>{const used=cardInstallments.filter(i=>i.card_id===c.id&&!i.paid).reduce((s,i)=>s+Number(i.amount),0);return `<div class="item"><strong>${escapeHtml(c.name)}</strong><br><small>Limite: ${money(c.credit_limit)} · Disponível: ${money(Math.max(0,Number(c.credit_limit)-used))}<br>Fecha dia ${c.closing_day} · Vence dia ${c.due_day}</small></div>`}).join("");
- purchases.innerHTML=cardPurchases.length?cardPurchases.slice().reverse().map(p=>`<div class="item"><strong>${escapeHtml(p.description)}</strong><br><small>${money(p.total_amount)} · ${p.installments}x · ${p.purchase_date}</small></div>`).join(""):"<small>Nenhuma compra no cartão.</small>";
- const groups={}; cardInstallments.forEach(i=>{const k=i.card_id+'|'+i.invoice_month;(groups[k]??=[]).push(i)}); const rows=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,arr])=>{const [cid,month]=k.split('|'),c=creditCards.find(x=>x.id===cid),total=arr.reduce((s,i)=>s+Number(i.amount),0),paid=arr.every(i=>i.paid);return `<div class="item"><strong>${escapeHtml(c?.name||"Cartão")} — ${month.slice(0,7)}</strong><br><small>Fatura: ${money(total)} · ${arr.length} parcela(s) · ${paid?'Paga':'Pendente'}</small>${paid?'':`<br><button class="primary" style="margin-top:8px" onclick="payInvoice('${cid}','${month}')">Pagar fatura</button>`}</div>`}); invoices.innerHTML=rows.length?rows.join(""):"<small>Nenhuma fatura gerada.</small>";
+ const list=document.getElementById("cardsList");
+ const overview=document.getElementById("cardsDetailedOverview");
+ const monthTotal=document.getElementById("cardMonthTotal");
+ const monthLabel=document.getElementById("cardMonthLabel");
+ if(!list||!overview)return;
+
+ const now=new Date();
+ const currentMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+ const monthName=new Intl.DateTimeFormat("pt-BR",{month:"long",year:"numeric"}).format(now);
+ const monthSpent=cardPurchases
+   .filter(p=>String(p.purchase_date||"").slice(0,7)===currentMonth)
+   .reduce((sum,p)=>sum+Number(p.total_amount||0),0);
+
+ if(monthTotal) monthTotal.textContent=money(monthSpent);
+ if(monthLabel) monthLabel.textContent=`Total gasto nos cartões em ${monthName}`;
+
+ if(!creditCards.length){
+   list.innerHTML="<small>Nenhum cartão cadastrado.</small>";
+   overview.innerHTML='<div class="card"><small>Cadastre um cartão para acompanhar faturas e compras.</small></div>';
+   return;
+ }
+
+ /* Este bloco continua sendo refinado pelo wrapper de edição/exclusão já existente. */
+ list.innerHTML=creditCards.map(c=>{
+   const used=cardInstallments
+     .filter(i=>i.card_id===c.id&&!i.paid)
+     .reduce((sum,i)=>sum+Number(i.amount||0),0);
+   return `<div class="item"><strong>${escapeHtml(c.name)}</strong><br><small>Limite: ${money(c.credit_limit)} · Disponível: ${money(Math.max(0,Number(c.credit_limit)-used))}<br>Fecha dia ${c.closing_day} · Vence dia ${c.due_day}</small></div>`;
+ }).join("");
+
+ function dueDateForInvoice(invoiceMonth,dueDay){
+   const parts=String(invoiceMonth||"").slice(0,10).split("-").map(Number);
+   if(parts.length!==3||!parts[0]||!parts[1]) return "-";
+   const y=parts[0], invoiceMonthNumber=parts[1];
+   const targetMonthIndex=invoiceMonthNumber; /* mês seguinte à competência */
+   const maxDay=new Date(Date.UTC(y,targetMonthIndex+1,0)).getUTCDate();
+   const d=new Date(Date.UTC(y,targetMonthIndex,Math.min(Number(dueDay||1),maxDay)));
+   return new Intl.DateTimeFormat("pt-BR",{timeZone:"UTC"}).format(d);
+ }
+
+ function invoiceGroupsForCard(cardId){
+   const groups={};
+   cardInstallments
+     .filter(i=>i.card_id===cardId)
+     .forEach(i=>{
+       const key=String(i.invoice_month||"").slice(0,10);
+       if(!key)return;
+       (groups[key]??=[]).push(i);
+     });
+   return Object.entries(groups)
+     .map(([month,rows])=>({
+       month,
+       rows,
+       total:rows.reduce((sum,i)=>sum+Number(i.amount||0),0),
+       paid:rows.every(i=>i.paid)
+     }))
+     .filter(x=>!x.paid)
+     .sort((a,b)=>a.month.localeCompare(b.month));
+ }
+
+ function purchaseRowsForCard(cardId){
+   return cardPurchases
+     .filter(p=>p.card_id===cardId)
+     .slice()
+     .sort((a,b)=>String(b.purchase_date||"").localeCompare(String(a.purchase_date||"")));
+ }
+
+ overview.innerHTML=creditCards.map(card=>{
+   const invoices=invoiceGroupsForCard(card.id);
+   const current=invoices[0]||null;
+   const future=invoices.slice(1);
+   const purchasesForCard=purchaseRowsForCard(card.id);
+
+   const currentHtml=current
+     ? `<div class="nd-current-invoice">
+          <div>
+            <small>Fatura atual</small>
+            <strong>${money(current.total)}</strong>
+            <span>Vencimento ${dueDateForInvoice(current.month,card.due_day)}</span>
+          </div>
+          <button class="primary" onclick="payInvoice('${card.id}','${current.month}')">Pagar fatura</button>
+        </div>`
+     : `<div class="nd-empty-line"><small>Fatura atual</small><span>Nenhuma fatura pendente.</span></div>`;
+
+   const futureHtml=future.length
+     ? future.map(inv=>`
+        <div class="nd-future-invoice">
+          <strong>${money(inv.total)}</strong>
+          <span>Vencimento ${dueDateForInvoice(inv.month,card.due_day)}</span>
+        </div>`).join("")
+     : '<div class="nd-empty-line"><span>Nenhuma próxima fatura.</span></div>';
+
+   const purchasesHtml=purchasesForCard.length
+     ? purchasesForCard.map(p=>{
+         const installments=cardInstallments
+           .filter(i=>i.purchase_id===p.id)
+           .sort((a,b)=>Number(a.installment_number||0)-Number(b.installment_number||0));
+         const pending=installments.find(i=>!i.paid);
+         const currentNo=Number(pending?.installment_number || installments.at(-1)?.installment_number || 1);
+         const totalNo=Number(p.installments||installments.length||1);
+         return `<div class="nd-card-purchase-row">
+           <div>
+             <strong>${escapeHtml(p.description)}</strong>
+             <small>${money(p.total_amount)}</small>
+           </div>
+           <span>Parcela ${String(currentNo).padStart(2,"0")}/${String(totalNo).padStart(2,"0")}</span>
+         </div>`;
+       }).join("")
+     : '<div class="nd-empty-line"><span>Nenhuma compra neste cartão.</span></div>';
+
+   return `<div class="card nd-card-detail">
+     <div class="nd-card-title">
+       <div>
+         <small>Cartão</small>
+         <h3>${escapeHtml(card.name)}</h3>
+       </div>
+       <span>Vence dia ${card.due_day}</span>
+     </div>
+
+     ${currentHtml}
+
+     <div class="nd-card-subsection">
+       <h4>Próximas faturas</h4>
+       ${futureHtml}
+     </div>
+
+     <div class="nd-card-subsection">
+       <h4>Compras — ${escapeHtml(card.name)}</h4>
+       ${purchasesHtml}
+     </div>
+   </div>`;
+ }).join("");
 }
 async function payInvoice(cardId,invoiceMonth){
  if(!accounts.length){alert("Cadastre uma conta bancária antes de pagar a fatura.");return;}
@@ -6813,6 +6962,207 @@ html[data-theme="dark"] #notificationsSection h3{
   window.addEventListener('resize',syncModalLock);
 })();
 </script>
+
+
+<style id="v63-cards-organized">
+/* Cabeçalhos internos no tema escuro */
+html[data-theme="dark"] #transactionsSection > .card:first-child h3,
+html[data-theme="dark"] #accountsSection > .card:first-child h3,
+html[data-theme="dark"] #cardsSection > .card:first-child h3{
+  color:#f4f8fc!important;
+}
+
+/* Organização da tela de cartões */
+#cardsSection .nd-cards-actions{
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+}
+#cardsSection .nd-cards-actions button{margin:0}
+
+#cardsSection .nd-card-month-summary{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+#cardsSection .nd-card-month-summary small{
+  font-size:12px;
+  font-weight:700;
+}
+#cardsSection .nd-card-month-summary strong{
+  font-size:30px;
+  line-height:1.1;
+  color:#1769e8;
+}
+#cardsSection .nd-card-month-summary span{
+  font-size:12px;
+  color:var(--muted);
+}
+
+#cardsSection .nd-card-detail{
+  padding:18px!important;
+}
+#cardsSection .nd-card-title{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  padding-bottom:14px;
+  border-bottom:1px solid var(--line);
+}
+#cardsSection .nd-card-title h3{
+  margin:2px 0 0;
+  font-size:20px!important;
+}
+#cardsSection .nd-card-title > span{
+  font-size:12px;
+  color:var(--muted);
+  white-space:nowrap;
+}
+
+#cardsSection .nd-current-invoice{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:16px 0;
+  border-bottom:1px solid var(--line);
+}
+#cardsSection .nd-current-invoice > div{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+#cardsSection .nd-current-invoice small{
+  font-weight:700;
+}
+#cardsSection .nd-current-invoice strong{
+  font-size:25px;
+  color:#1769e8;
+}
+#cardsSection .nd-current-invoice span,
+#cardsSection .nd-future-invoice span{
+  font-size:12px;
+  color:var(--muted);
+}
+
+#cardsSection .nd-card-subsection{
+  padding-top:16px;
+}
+#cardsSection .nd-card-subsection + .nd-card-subsection{
+  margin-top:14px;
+  border-top:1px solid var(--line);
+}
+#cardsSection .nd-card-subsection h4{
+  margin:0 0 10px;
+  font-size:14px;
+}
+
+#cardsSection .nd-future-invoice,
+#cardsSection .nd-card-purchase-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:10px 0;
+  border-bottom:1px solid var(--line);
+}
+#cardsSection .nd-future-invoice:last-child,
+#cardsSection .nd-card-purchase-row:last-child{
+  border-bottom:0;
+}
+#cardsSection .nd-future-invoice strong{
+  font-size:15px;
+}
+#cardsSection .nd-card-purchase-row > div{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+#cardsSection .nd-card-purchase-row strong{
+  overflow-wrap:anywhere;
+}
+#cardsSection .nd-card-purchase-row small{
+  color:var(--muted);
+}
+#cardsSection .nd-card-purchase-row > span{
+  flex:0 0 auto;
+  font-size:12px;
+  font-weight:700;
+  color:#1769e8;
+}
+#cardsSection .nd-empty-line{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:8px 0;
+  color:var(--muted);
+}
+
+html[data-theme="dark"] #cardsSection .nd-card-month-summary strong,
+html[data-theme="dark"] #cardsSection .nd-current-invoice strong,
+html[data-theme="dark"] #cardsSection .nd-card-purchase-row > span{
+  color:#61a8ff!important;
+}
+html[data-theme="dark"] #cardsSection .nd-card-title h3,
+html[data-theme="dark"] #cardsSection .nd-card-subsection h4,
+html[data-theme="dark"] #cardsSection .nd-future-invoice strong,
+html[data-theme="dark"] #cardsSection .nd-card-purchase-row strong{
+  color:#f4f8fc!important;
+}
+html[data-theme="dark"] #cardsSection .nd-card-title > span,
+html[data-theme="dark"] #cardsSection .nd-current-invoice span,
+html[data-theme="dark"] #cardsSection .nd-future-invoice span,
+html[data-theme="dark"] #cardsSection .nd-card-purchase-row small,
+html[data-theme="dark"] #cardsSection .nd-empty-line,
+html[data-theme="dark"] #cardsSection .nd-card-month-summary span{
+  color:#c7d6e4!important;
+}
+
+@media(max-width:800px){
+  #cardsSection .nd-cards-head .row{
+    align-items:center!important;
+  }
+  #cardsSection .nd-cards-actions{
+    flex:0 0 auto;
+  }
+  #cardsSection .nd-cards-actions button{
+    padding:11px 12px!important;
+    font-size:12px!important;
+  }
+  #cardsSection .nd-card-month-summary strong{
+    font-size:28px;
+  }
+  #cardsSection .nd-card-detail{
+    padding:16px 14px!important;
+  }
+  #cardsSection .nd-current-invoice{
+    align-items:flex-end;
+  }
+  #cardsSection .nd-current-invoice button{
+    flex:0 0 auto;
+    padding:10px 12px!important;
+  }
+}
+
+@media(max-width:390px){
+  #cardsSection .nd-cards-head .row{
+    flex-wrap:wrap;
+  }
+  #cardsSection .nd-cards-actions{
+    width:100%;
+    justify-content:stretch;
+  }
+  #cardsSection .nd-cards-actions button{
+    flex:1;
+  }
+  #cardsSection .nd-current-invoice{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+}
+</style>
 
 </body>
 </html>
