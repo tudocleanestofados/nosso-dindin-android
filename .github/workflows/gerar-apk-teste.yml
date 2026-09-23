@@ -48,7 +48,7 @@ jobs:
           <body>
             <p>Abrindo ambiente de teste...</p>
             <script>
-              location.replace('https://tudocleanestofados.github.io/nosso-dindin-android/');
+              location.replace('https://tudocleanestofados.github.io/nosso-dindin-android/?v=' + Date.now());
             </script>
           </body>
           </html>
