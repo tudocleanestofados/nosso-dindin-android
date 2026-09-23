@@ -1,10 +1,9 @@
 {
   "appId": "com.nossodindin.teste",
   "appName": "Nosso Dindin Teste",
-  "webDir": "www",
+  "webDir": "test-www",
   "server": {
-    "url": "https://tudocleanestofados.github.io/nosso-dindin-android/",
-    "cleartext": false
+    "allowNavigation": ["tudocleanestofados.github.io"]
   },
   "android": {
     "allowMixedContent": false
