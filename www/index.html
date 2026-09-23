@@ -1751,7 +1751,7 @@ body.auth-required main{visibility:hidden !important}
 <button class="nd-refresh-btn" onclick="loadDueNotifications()">Atualizar avisos</button></div>
 <div class="card"><h3>Movimentações recentes</h3><small>Alertas dos últimos 3 dias. Avisos mais antigos deixam de aparecer automaticamente.</small>
 <div id="movementAlertList" style="margin-top:12px"><small>Carregando...</small></div>
-<button onclick="loadMovementAlerts()" style="margin-top:10px">Atualizar movimentações</button></div></section>
+<button class="nd-refresh-btn nd-refresh-movements" onclick="loadMovementAlerts()">Atualizar movimentações</button></div></section>
 <section id="assistantSection" class="hidden">
       <div class="card ai-shell">
         <div class="ai-title"><span class="icon-circle">✦</span><div><h3>Assistente Financeiro</h3><small>Converse sobre gastos, saldo, faturas e metas.</small></div></div>
@@ -4290,7 +4290,7 @@ function renderVaultSummary(){
  let card=document.getElementById('vaultSummaryCard');
  if(!card){card=document.createElement('div');card.id='vaultSummaryCard';card.className='card';box.prepend(card)}
  const free=vaultFreeBalance(), total=vaultTotal();
- card.innerHTML=`<div class="row"><div class="nd-vault-head"><span class="nd-vault-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5.5 10.5c0-3.1 2.8-5.5 6.7-5.5 2 0 3.8.7 5 1.9H21v4h-2.2c-.4 1.8-1.5 3.3-3.1 4.2V18h-2v-2H9.2v2h-2v-3.1c-1.1-1-1.7-2.5-1.7-4.4Z"/><path d="M10 5.2V3.7c1.4 0 2.7.4 3.7 1.2M5.5 11H3V9h2.7M16.2 9h.01"/></svg></span><div><h3 style="margin:0">Cofrinho</h3><small>Total guardado</small><div style="font-size:24px;font-weight:800;margin-top:4px">${money(total)}</div></div></div><button onclick="openVaultModal()">Guardar dinheiro</button></div>
+ card.innerHTML=`<div class="row"><div class="nd-vault-head"><span class="nd-vault-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 4h6l-1 2H10L9 4Z"/><path d="M8.5 7h7c2.2 1.6 3.5 3.9 3.5 6.4 0 3.7-2.7 6.1-7 6.1s-7-2.4-7-6.1C5 10.9 6.3 8.6 8.5 7Z"/><path d="M12 9.5v7M14.2 11c-.4-.7-1.1-1-2-1-1.2 0-2 .6-2 1.5 0 .8.6 1.2 1.8 1.5l.7.2c1 .2 1.6.7 1.6 1.5 0 1-.9 1.7-2.2 1.7-1 0-1.8-.4-2.3-1.1"/></svg></span><div><h3 style="margin:0">Cofrinho</h3><small>Total guardado</small><div style="font-size:24px;font-weight:800;margin-top:4px">${money(total)}</div></div></div><button onclick="openVaultModal()">Guardar dinheiro</button></div>
  <div style="margin-top:10px"><b>Livre:</b> ${money(free)}</div>
  ${financialGoals.map(g=>`<div style="margin-top:5px"><b>${escapeHtml(g.name)}:</b> ${money(Number(g.current_amount||0))}</div>`).join('')}`;
 }
@@ -6557,17 +6557,20 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
 <style id="nd-direct-fixes">
 #vaultSummaryCard .nd-vault-head{display:flex;align-items:center;gap:12px}
 #vaultSummaryCard .nd-vault-icon{
-  display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;
-  border-radius:11px;background:#eaf3ff;color:#2878dc
+  display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;
+  border-radius:9px;background:#e9f3ff;color:#1769e8
 }
 #vaultSummaryCard .nd-vault-icon svg{
-  width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;
+  width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;
   stroke-linecap:round;stroke-linejoin:round
 }
 #notificationsSection .nd-refresh-btn{
   display:block;
   clear:both;
   margin-top:24px!important;
+}
+#notificationsSection .nd-refresh-movements{
+  margin-top:30px!important;
 }
 </style>
 
