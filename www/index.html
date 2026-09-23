@@ -1891,11 +1891,11 @@ body.auth-required main{visibility:hidden !important}
 </div></div>
 
 <div id="cardModal" class="modal hidden"><div class="modal-content"><button class="close" onclick="closeCardModal()">×</button><h2>Novo cartão</h2><br><label>Nome do cartão</label><input id="cardName" placeholder="Ex.: Nubank"><label>Limite total</label><input type="number" id="cardLimit" step="0.01" placeholder="0,00"><label>Dia de fechamento</label><input type="number" id="cardClosing" min="1" max="31"><label>Dia de vencimento</label><input type="number" id="cardDue" min="1" max="31"><button class="primary" onclick="saveCreditCard()">Salvar cartão</button></div></div>
-<div id="purchaseModal" class="modal hidden"><div class="modal-content"><button class="close" onclick="closePurchaseModal()">×</button><h2>Nova compra no cartão</h2><br><label>Cartão</label><select id="purchaseCard"></select><label>Descrição</label><input id="purchaseDescription"><label>Valor total</label><input type="number" id="purchaseAmount" step="0.01"><label>Data da compra</label><input type="date" id="purchaseDate"><label>Categoria</label><input id="purchaseCategory" placeholder="Ex.: Alimentação"><label>Parcelas</label><input type="number" id="purchaseInstallments" min="1" max="120" value="1"><button class="primary" onclick="saveCardPurchase()">Salvar compra</button></div></div>
+<div id="purchaseModal" class="modal hidden"><div class="modal-content"><button class="close" onclick="closePurchaseModal()">×</button><h2>Nova compra no cartão</h2><br><label>Cartão</label><select id="purchaseCard"></select><label>Descrição</label><input id="purchaseDescription"><label>Valor total</label><input type="number" id="purchaseAmount" step="0.01"><label>Data da compra</label><input type="date" id="purchaseDate"><label>Categoria</label><select id="purchaseCategory"></select><label>Parcelas</label><input type="number" id="purchaseInstallments" min="1" max="120" value="1"><button class="primary" onclick="saveCardPurchase()">Salvar compra</button></div></div>
 
 <div id="transactionModal" class="modal hidden"><div class="modal-content">
 <button class="close" onclick="closeTransactionModal()">×</button><h2>Novo lançamento</h2><br>
-<div id="txStepType"><p style="margin-bottom:12px;color:var(--muted)">O que você deseja lançar?</p><div class="flow-choice"><button onclick="chooseTxType('income')">🟢<br><strong>Receita</strong><br><small>Entrada de dinheiro</small></button><button onclick="chooseTxType('expense')">🔴<br><strong>Despesa</strong><br><small>Saída de dinheiro</small></button></div></div>
+<div id="txStepType"><p style="margin-bottom:12px;color:var(--muted)">O que você deseja lançar?</p><div class="flow-choice"><button onclick="chooseTxType('income')">🟢<br><strong>Receita</strong><br><small>Entrada de dinheiro</small></button><button onclick="chooseTxType('expense')">🔴<br><strong>Despesa</strong><br><small>Saída de dinheiro</small></button><button onclick="chooseTxType('card')">💳<br><strong>Compra com cartão</strong><br><small>Compra à vista ou parcelada</small></button></div></div>
 <div id="txForm" class="hidden"><button class="secondary" onclick="resetTxForm()" style="margin-bottom:12px">← Trocar tipo</button><h3 id="txFormTitle"></h3><input type="hidden" id="transactionType" value="">
 <label>Descrição</label><input id="transactionDescription" placeholder="Descrição do lançamento">
 <label>Valor</label><input type="number" id="transactionAmount" step="0.01" placeholder="0,00">
@@ -7181,6 +7181,196 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
   opacity:1!important;
 }
 </style>
+
+
+<style id="v65-finance-flow-improvements">
+#transactionModal .flow-choice{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+#transactionModal .flow-choice button{
+  min-height:112px;
+  white-space:normal;
+  line-height:1.25;
+}
+#transactionModal .flow-choice small{
+  display:block;
+  margin-top:5px;
+  font-weight:500;
+}
+@media(max-width:520px){
+  #transactionModal .flow-choice{
+    grid-template-columns:1fr;
+  }
+  #transactionModal .flow-choice button{
+    min-height:86px;
+  }
+}
+.nd-pending-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+.nd-pending-actions button{
+  padding:7px 12px!important;
+}
+.nd-action-settle{
+  background:#1769e8!important;
+  color:#fff!important;
+  border-color:#1769e8!important;
+}
+</style>
+
+<script id="v65-finance-flow-improvements">
+(function(){
+  function purchaseCategories(){
+    const base=(typeof EXPENSE_CATEGORIES!=='undefined'&&Array.isArray(EXPENSE_CATEGORIES))
+      ? EXPENSE_CATEGORIES
+      : ['Alimentação','Moradia','Transporte','Saúde','Educação','Lazer','Casa','Internet','Assinaturas','Impostos','Seguros','Compras','Outros'];
+    let custom=[];
+    try{
+      custom=typeof customCats==='function'?customCats('expense'):JSON.parse(localStorage.getItem('cats_expense')||'[]');
+    }catch(_){}
+    return [...new Set([...base,...custom])];
+  }
+
+  window.openPurchaseModal=function(){
+    if(!creditCards.length){alert('Cadastre um cartão primeiro.');return;}
+    const card=document.getElementById('purchaseCard');
+    const category=document.getElementById('purchaseCategory');
+
+    card.innerHTML=creditCards.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+    category.innerHTML=purchaseCategories().map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+
+    document.getElementById('purchaseDescription').value='';
+    document.getElementById('purchaseAmount').value='';
+    document.getElementById('purchaseDate').value=today();
+    document.getElementById('purchaseInstallments').value='1';
+    if(category.options.length) category.selectedIndex=0;
+    if(card.options.length) card.selectedIndex=0;
+
+    document.getElementById('purchaseModal').classList.remove('hidden');
+  };
+
+  const previousChooseTxType=window.chooseTxType;
+  window.chooseTxType=function(type){
+    if(type==='card'){
+      document.getElementById('transactionModal').classList.add('hidden');
+      openPurchaseModal();
+      return;
+    }
+    if(!accounts.length){
+      alert('Cadastre pelo menos uma conta antes de criar uma receita ou despesa.');
+      return;
+    }
+    previousChooseTxType(type);
+  };
+
+  window.openTransactionModal=function(){
+    resetTxForm();
+    document.getElementById('transactionModal').classList.remove('hidden');
+  };
+
+  window.v23TransactionHtml=function(t){
+    const account=accounts.find(a=>a.id===t.account_id);
+    const paid=!!t.paid;
+    const badge=paid
+      ? '<span class="badge badge-paid">'+(t.type==='income'?'Recebido':'Pago')+'</span>'
+      : '<span class="badge badge-pending">Pendente</span>';
+
+    let actions='';
+    if(txCanEdit(t)){
+      actions='<div class="nd-pending-actions">';
+      if(!paid){
+        actions+=`<button class="nd-action-settle" onclick="openPayTransaction('${t.id}')">${t.type==='income'?'Receber':'Pagar'}</button>`;
+      }
+      actions+=`<button class="secondary" onclick="openEditTransaction('${t.id}')">Editar</button><button class="secondary" onclick="deleteTransaction('${t.id}')">Excluir</button></div>`;
+    }
+
+    const when=paid
+      ? (t.date?dateBR(t.date):'')
+      : (t.due_date?'Vence '+dateBR(t.due_date):(t.date?dateBR(t.date):''));
+
+    return `<div class="transaction"><div class="transaction-top"><div><div class="transaction-desc">${escapeHtml(t.description)}</div><div class="transaction-info">${escapeHtml(t.category||'Sem categoria')}${when?' • '+when:''}${account?' • '+escapeHtml(account.name):''}</div>${badge}${actions}</div><div class="amount ${t.type==='income'?'income':'expense'}">${t.type==='income'?'+':'-'} ${money(t.amount)}</div></div></div>`;
+  };
+  window.renderTransaction=window.v23TransactionHtml;
+
+  function profileKey(kind){
+    return currentUser?.id ? `finance_profile_${kind}_${currentUser.id}` : `finance_profile_${kind}`;
+  }
+
+  function legacyProfileBelongsToCurrentUser(){
+    const legacy=(localStorage.getItem('finance_profile_name')||'').trim().toLowerCase();
+    const emailLocal=(currentUser?.email||'').split('@')[0].toLowerCase();
+    if(!legacy||!emailLocal)return false;
+    const first=legacy.split(/\s+/)[0].replace(/[^a-z0-9á-ú]/g,'');
+    return !!first && (emailLocal.startsWith(first) || first.startsWith(emailLocal));
+  }
+
+  window.userDisplayName=function(){
+    const key=profileKey('name');
+    let saved=localStorage.getItem(key);
+    if(!saved && currentUser?.id && legacyProfileBelongsToCurrentUser()){
+      saved=localStorage.getItem('finance_profile_name');
+      if(saved)localStorage.setItem(key,saved);
+    }
+    if(saved)return saved;
+
+    const meta=currentUser?.user_metadata||{};
+    const metaName=String(meta.full_name||meta.name||'').trim();
+    if(metaName)return metaName;
+
+    const local=String(currentUser?.email||'').split('@')[0].replace(/[._-]+/g,' ').trim();
+    if(local)return local.replace(/\b\w/g,c=>c.toUpperCase());
+    return 'Usuário';
+  };
+
+  window.renderProfilePhoto=function(){
+    let d=localStorage.getItem(profileKey('photo'));
+    if(!d && currentUser?.id && legacyProfileBelongsToCurrentUser()){
+      d=localStorage.getItem('finance_profile_photo');
+      if(d)localStorage.setItem(profileKey('photo'),d);
+    }
+    const box=document.getElementById('profileEditorAvatar');
+    if(box){
+      box.textContent=d?'':userInitials();
+      box.style.backgroundImage=d?`url(${d})`:'';
+    }
+    document.querySelectorAll('.avatar.profile-click,button.profile.profile-click span').forEach(el=>{
+      el.style.backgroundImage=d?`url(${d})`:'';
+      el.style.backgroundSize='cover';
+      el.style.backgroundPosition='center';
+      if(d)el.textContent='';
+      else el.textContent=userInitials();
+    });
+  };
+
+  window.previewProfilePhoto=function(input){
+    const file=input.files?.[0];if(!file)return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      localStorage.setItem(profileKey('photo'),rd.result);
+      renderProfilePhoto();
+    };
+    rd.readAsDataURL(file);
+  };
+
+  window.saveProfile=function(){
+    const n=document.getElementById('profileNameInput').value.trim();
+    if(n)localStorage.setItem(profileKey('name'),n);
+    updateGreeting();
+    renderProfilePhoto();
+    closeProfileModal();
+  };
+
+  /* Corrige imediatamente a saudação quando a sessão já estiver carregada. */
+  setTimeout(function(){
+    try{updateGreeting();renderProfilePhoto();}catch(_){}
+  },250);
+})();
+</script>
 
 </body>
 </html>
