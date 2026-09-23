@@ -2,6 +2,10 @@ name: Gerar APK Nosso Dindin
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/official-release-trigger'
 
 jobs:
   build:
