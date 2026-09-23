@@ -1,0 +1,23 @@
+{
+  "appId": "com.nossodindin.app",
+  "appName": "Nosso Dindin Teste",
+  "webDir": "www",
+  "server": {
+    "url": "https://tudocleanestofados.github.io/nosso-dindin-android/",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["sound", "alert"]
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK",
+      "hidden": false,
+      "animation": "NONE"
+    }
+  }
+}
