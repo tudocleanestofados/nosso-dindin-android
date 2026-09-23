@@ -7443,5 +7443,96 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 })();
 </script>
 
+
+<script id="v67-independent-startup">
+(function(){
+  function withTimeout(promise,ms){
+    return Promise.race([
+      Promise.resolve(promise),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))
+    ]);
+  }
+
+  async function independentStartup(){
+    const pw=document.getElementById('publicWelcome');
+    try{
+      const sessionResult=await withTimeout(supabaseClient.auth.getSession(),3000);
+      currentUser=sessionResult?.data?.session?.user||null;
+
+      if(!currentUser){
+        document.body.classList.add('auth-required');
+        if(pw){
+          pw.classList.remove('v19-loading');
+          pw.style.display='flex';
+        }
+        return;
+      }
+
+      document.body.classList.remove('auth-required');
+
+      try{
+        if(!GROUP_ID) await withTimeout(recoverUserGroup(),3000);
+      }catch(e){
+        console.warn('Grupo não carregou no início:',e);
+      }
+
+      try{
+        if(GROUP_ID) await withTimeout(loadCloudData(),5000);
+      }catch(e){
+        console.warn('Dados não carregaram no início:',e);
+      }
+
+      try{
+        renderAll();
+        updateGreeting();
+        renderProfilePhoto();
+        applySensitiveState();
+      }catch(e){
+        console.error('Falha ao renderizar:',e);
+      }
+
+      if(pw){
+        pw.classList.remove('v19-loading');
+        pw.style.display='none';
+      }
+      try{ if(GROUP_ID) subscribeRealtime(); }catch(_){}
+    }catch(e){
+      console.error('Inicialização independente:',e);
+      if(pw){
+        pw.classList.remove('v19-loading');
+        pw.style.display='flex';
+      }
+      document.body.classList.add('auth-required');
+    }
+  }
+
+  window.addEventListener('load',function(){
+    setTimeout(independentStartup,1200);
+  },{once:true});
+
+  /* Failsafe absoluto: nunca deixa o spinner infinito. */
+  setTimeout(function(){
+    const pw=document.getElementById('publicWelcome');
+    if(!pw?.classList.contains('v19-loading')) return;
+
+    pw.classList.remove('v19-loading');
+    supabaseClient.auth.getSession().then(({data})=>{
+      currentUser=data?.session?.user||null;
+      if(currentUser){
+        document.body.classList.remove('auth-required');
+        pw.style.display='none';
+        try{renderAll();updateGreeting();renderProfilePhoto();}catch(_){}
+      }else{
+        document.body.classList.add('auth-required');
+        pw.style.display='flex';
+      }
+    }).catch(()=>{
+      document.body.classList.add('auth-required');
+      pw.style.display='flex';
+    });
+  },6000);
+})();
+</script>
+
 </body>
 </html>
