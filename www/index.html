@@ -7372,5 +7372,76 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 })();
 </script>
 
+
+<script id="v66-loading-recovery">
+(function(){
+  const baseRefresh=window.refreshAuthUI;
+  if(typeof baseRefresh!=='function') return;
+
+  let running=false;
+
+  function hideLoading(){
+    const pw=document.getElementById('publicWelcome');
+    if(pw) pw.classList.remove('v19-loading');
+  }
+
+  function timeout(ms){
+    return new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tempo limite ao carregar dados.')),ms));
+  }
+
+  window.refreshAuthUI=async function(){
+    if(running) return;
+    running=true;
+    try{
+      await Promise.race([
+        Promise.resolve(baseRefresh()),
+        timeout(15000)
+      ]);
+    }catch(e){
+      console.error('Falha ao carregar sessão/dados:',e);
+      hideLoading();
+
+      try{
+        const {data}=await supabaseClient.auth.getSession();
+        currentUser=data?.session?.user||null;
+
+        if(currentUser){
+          document.body.classList.remove('auth-required');
+          const pw=document.getElementById('publicWelcome');
+          if(pw) pw.style.display='none';
+          try{
+            if(!GROUP_ID) await recoverUserGroup();
+            if(GROUP_ID) await Promise.race([loadCloudData(),timeout(10000)]);
+          }catch(loadError){
+            console.error('Recuperação de dados:',loadError);
+          }
+          try{renderAll();updateGreeting();renderProfilePhoto();}catch(renderError){console.error('Render:',renderError)}
+        }else{
+          document.body.classList.add('auth-required');
+          const pw=document.getElementById('publicWelcome');
+          if(pw){pw.style.display='flex';pw.classList.remove('v19-loading');}
+        }
+      }catch(recoveryError){
+        console.error('Recuperação de sessão:',recoveryError);
+        const pw=document.getElementById('publicWelcome');
+        if(pw){pw.style.display='flex';pw.classList.remove('v19-loading');}
+      }
+    }finally{
+      running=false;
+      document.documentElement.classList.remove('auth-checking');
+    }
+  };
+
+  /* Se uma versão anterior já deixou a tela presa, tenta destravar automaticamente. */
+  setTimeout(function(){
+    const pw=document.getElementById('publicWelcome');
+    if(pw?.classList.contains('v19-loading')){
+      hideLoading();
+      window.refreshAuthUI();
+    }
+  },12000);
+})();
+</script>
+
 </body>
 </html>
