@@ -6638,5 +6638,181 @@ html[data-theme="dark"] #notificationsSection h3{
 }
 </style>
 
+
+<style id="v62-mobile-audit-consolidated">
+/* Revisão mobile consolidada: contraste, modais e bloqueio da tela de fundo. */
+@media(max-width:800px){
+  /* Títulos das telas internas: contraste consistente no tema escuro. */
+  html[data-theme="dark"] section:not(#dashboardSection) h2,
+  html[data-theme="dark"] section:not(#dashboardSection) h3,
+  html[data-theme="dark"] #vaultSummaryCard h3{
+    color:#f4f8fc!important;
+  }
+
+  html[data-theme="dark"] section:not(#dashboardSection) > .card > small,
+  html[data-theme="dark"] section:not(#dashboardSection) .card > small{
+    color:#c7d6e4!important;
+  }
+
+  /* Ao abrir qualquer formulário/modal, a tela por trás não se move. */
+  html.nd-modal-open,
+  body.nd-modal-open{
+    overflow:hidden!important;
+    overscroll-behavior:none!important;
+    height:100%!important;
+  }
+
+  /* Formulários do app em tela cheia no celular.
+     O lançamento principal já possui tratamento próprio e é preservado. */
+  #invoicePayModal,
+  #profileModal,
+  #cardModal,
+  #purchaseModal,
+  #editTransactionModal,
+  #accountModal,
+  #goalModal,
+  #payTxModal,
+  #vaultModal,
+  #goalMoveModal{
+    position:fixed!important;
+    inset:0!important;
+    z-index:5000!important;
+    width:100vw!important;
+    height:100dvh!important;
+    margin:0!important;
+    padding:0!important;
+    align-items:stretch!important;
+    justify-content:stretch!important;
+    overflow:hidden!important;
+    background:var(--surface,#fff)!important;
+    overscroll-behavior:contain!important;
+  }
+
+  #invoicePayModal.hidden,
+  #profileModal.hidden,
+  #cardModal.hidden,
+  #purchaseModal.hidden,
+  #editTransactionModal.hidden,
+  #accountModal.hidden,
+  #goalModal.hidden,
+  #payTxModal.hidden,
+  #vaultModal.hidden,
+  #goalMoveModal.hidden{
+    display:none!important;
+  }
+
+  #invoicePayModal .modal-content,
+  #profileModal .modal-content,
+  #cardModal .modal-content,
+  #purchaseModal .modal-content,
+  #editTransactionModal .modal-content,
+  #accountModal .modal-content,
+  #payTxModal .modal-content,
+  #vaultModal .modal-content,
+  #goalMoveModal .modal-content,
+  #goalModal .modal-box{
+    width:100%!important;
+    max-width:none!important;
+    min-height:100dvh!important;
+    height:100dvh!important;
+    max-height:none!important;
+    margin:0!important;
+    border-radius:0!important;
+    padding:
+      calc(18px + var(--nd-safe-top, env(safe-area-inset-top,0px)))
+      max(20px,var(--nd-safe-right, env(safe-area-inset-right,0px)))
+      calc(28px + var(--nd-safe-bottom, env(safe-area-inset-bottom,0px)))
+      max(20px,var(--nd-safe-left, env(safe-area-inset-left,0px)))!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain!important;
+    background:var(--surface,#fff)!important;
+    color:var(--ink,#10233e)!important;
+    box-sizing:border-box!important;
+  }
+
+  html[data-theme="dark"] #invoicePayModal,
+  html[data-theme="dark"] #profileModal,
+  html[data-theme="dark"] #cardModal,
+  html[data-theme="dark"] #purchaseModal,
+  html[data-theme="dark"] #editTransactionModal,
+  html[data-theme="dark"] #accountModal,
+  html[data-theme="dark"] #goalModal,
+  html[data-theme="dark"] #payTxModal,
+  html[data-theme="dark"] #vaultModal,
+  html[data-theme="dark"] #goalMoveModal,
+  html[data-theme="dark"] #invoicePayModal .modal-content,
+  html[data-theme="dark"] #profileModal .modal-content,
+  html[data-theme="dark"] #cardModal .modal-content,
+  html[data-theme="dark"] #purchaseModal .modal-content,
+  html[data-theme="dark"] #editTransactionModal .modal-content,
+  html[data-theme="dark"] #accountModal .modal-content,
+  html[data-theme="dark"] #payTxModal .modal-content,
+  html[data-theme="dark"] #vaultModal .modal-content,
+  html[data-theme="dark"] #goalMoveModal .modal-content,
+  html[data-theme="dark"] #goalModal .modal-box{
+    background:#132131!important;
+    color:#f4f8fc!important;
+  }
+
+  html[data-theme="dark"] .modal h2,
+  html[data-theme="dark"] .modal h3,
+  html[data-theme="dark"] .modal label{
+    color:#f4f8fc!important;
+  }
+
+  /* Botões e campos nunca ultrapassam a largura útil do celular. */
+  .modal input,
+  .modal select,
+  .modal textarea,
+  .modal button{
+    max-width:100%;
+  }
+
+  /* Linhas de ações quebram em telas estreitas, sem cortar botões. */
+  #editTransactionModal .row,
+  #goalModal .row,
+  #vaultModal .row,
+  #goalMoveModal .row{
+    flex-wrap:wrap;
+  }
+
+  #editTransactionModal .row > button,
+  #goalModal .row > button,
+  #goalMoveModal .row > button{
+    min-width:130px;
+  }
+}
+</style>
+
+<script id="v62-mobile-audit-modal-lock">
+(function(){
+  function syncModalLock(){
+    if(window.innerWidth>800){
+      document.documentElement.classList.remove('nd-modal-open');
+      document.body.classList.remove('nd-modal-open');
+      return;
+    }
+    const open=[...document.querySelectorAll('.modal')].some(el=>!el.classList.contains('hidden'));
+    document.documentElement.classList.toggle('nd-modal-open',open);
+    document.body.classList.toggle('nd-modal-open',open);
+  }
+
+  function watchModals(){
+    const modals=[...document.querySelectorAll('.modal')];
+    const observer=new MutationObserver(syncModalLock);
+    modals.forEach(el=>observer.observe(el,{attributes:true,attributeFilter:['class']}));
+    syncModalLock();
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',watchModals,{once:true});
+  }else{
+    watchModals();
+  }
+  window.addEventListener('resize',syncModalLock);
+})();
+</script>
+
 </body>
 </html>
