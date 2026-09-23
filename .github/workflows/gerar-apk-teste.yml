@@ -2,6 +2,11 @@ name: Gerar APK Nosso Dindin Teste
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'capacitor.test.config.json'
+      - '.github/workflows/gerar-apk-teste.yml'
 
 jobs:
   build:
