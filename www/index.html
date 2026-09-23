@@ -7164,5 +7164,23 @@ html[data-theme="dark"] #cardsSection .nd-card-month-summary span{
 }
 </style>
 
+
+<style id="v64-dark-section-head-fix">
+/* Correção final dos cabeçalhos Lançamentos e Contas no tema escuro.
+   Sobrescreve a camada visual antiga que ainda forçava fundo/texto claros. */
+html[data-theme="dark"] #transactionsSection > .card:first-child,
+html[data-theme="dark"] #accountsSection > .card:first-child{
+  background:#132131!important;
+  color:#f4f8fc!important;
+  border-color:#294057!important;
+  box-shadow:none!important;
+}
+html[data-theme="dark"] #transactionsSection > .card:first-child h3,
+html[data-theme="dark"] #accountsSection > .card:first-child h3{
+  color:#f4f8fc!important;
+  opacity:1!important;
+}
+</style>
+
 </body>
 </html>
