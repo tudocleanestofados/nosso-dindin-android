@@ -3847,12 +3847,15 @@ function renderCards(){
          const pending=installments.find(i=>!i.paid);
          const currentNo=Number(pending?.installment_number || installments.at(-1)?.installment_number || 1);
          const totalNo=Number(p.installments||installments.length||1);
-         return `<div class="nd-card-purchase-row">
+         return `<div class="nd-card-purchase-row" data-purchase-id="${p.id}">
            <div>
              <strong>${escapeHtml(p.description)}</strong>
              <small>${money(p.total_amount)}</small>
            </div>
-           <span>Parcela ${String(currentNo).padStart(2,"0")}/${String(totalNo).padStart(2,"0")}</span>
+           <div class="nd-purchase-side">
+             <span>Parcela ${String(currentNo).padStart(2,"0")}/${String(totalNo).padStart(2,"0")}</span>
+             <button class="secondary nd-edit-purchase-btn" type="button" onclick="openEditCardPurchase('${p.id}')">Editar</button>
+           </div>
          </div>`;
        }).join("")
      : '<div class="nd-empty-line"><span>Nenhuma compra neste cartão.</span></div>';
@@ -7738,6 +7741,160 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
     closePurchaseModal();
     await loadCloudData();
     renderAll();
+  };
+})();
+</script>
+
+
+<div id="editCardPurchaseModal" class="modal hidden"><div class="modal-content" style="max-width:500px">
+<button class="close" onclick="closeEditCardPurchase()">×</button>
+<h2>Editar compra no cartão</h2><br>
+<input type="hidden" id="editCardPurchaseId">
+<label>Descrição</label><input id="editCardPurchaseDescription">
+<label>Categoria</label><select id="editCardPurchaseCategory"></select>
+<label>Total de parcelas</label><input id="editCardPurchaseTotalInstallments" type="number" disabled>
+<label>Valor de cada parcela</label><input id="editCardPurchaseInstallmentAmount" type="number" min="0.01" step="0.01">
+<small>Ao salvar, o valor será aplicado às parcelas que ainda não foram pagas e o total da compra será recalculado.</small>
+<button class="primary" onclick="saveEditedCardPurchase()">Salvar alterações</button>
+</div></div>
+
+<style id="v70-card-purchase-edit-dashboard">
+.nd-card-purchase-row .nd-purchase-side{
+  display:flex;
+  align-items:flex-end;
+  gap:8px;
+  flex-direction:column;
+}
+.nd-edit-purchase-btn{
+  padding:6px 10px!important;
+  margin:0!important;
+}
+@media(max-width:520px){
+  .nd-card-purchase-row{
+    align-items:flex-start!important;
+  }
+  .nd-card-purchase-row .nd-purchase-side{
+    align-items:flex-end;
+  }
+}
+</style>
+
+<script id="v70-card-purchase-edit-dashboard">
+(function(){
+  function expenseCategories(){
+    const base=(typeof EXPENSE_CATEGORIES!=='undefined'&&Array.isArray(EXPENSE_CATEGORIES))
+      ? EXPENSE_CATEGORIES
+      : ['Alimentação','Moradia','Transporte','Saúde','Educação','Lazer','Casa','Internet','Assinaturas','Impostos','Seguros','Compras','Outros'];
+    let custom=[];
+    try{ custom=typeof customCats==='function'?customCats('expense'):[]; }catch(_){}
+    return [...new Set([...base,...custom])];
+  }
+
+  window.openEditCardPurchase=function(id){
+    const p=(cardPurchases||[]).find(x=>x.id===id);
+    if(!p)return;
+
+    const rows=(cardInstallments||[])
+      .filter(i=>i.purchase_id===id)
+      .sort((a,b)=>Number(a.installment_number||0)-Number(b.installment_number||0));
+    const pending=rows.find(i=>!i.paid) || rows[0];
+
+    document.getElementById('editCardPurchaseId').value=id;
+    document.getElementById('editCardPurchaseDescription').value=p.description||'';
+    document.getElementById('editCardPurchaseTotalInstallments').value=Number(p.installments||rows.length||1);
+    document.getElementById('editCardPurchaseInstallmentAmount').value=Number(pending?.amount||0).toFixed(2);
+
+    const cat=document.getElementById('editCardPurchaseCategory');
+    const options=expenseCategories();
+    if(p.category && !options.includes(p.category)) options.push(p.category);
+    cat.innerHTML=options.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+    if(p.category) cat.value=p.category;
+
+    document.getElementById('editCardPurchaseModal').classList.remove('hidden');
+  };
+
+  window.closeEditCardPurchase=function(){
+    document.getElementById('editCardPurchaseModal').classList.add('hidden');
+  };
+
+  window.saveEditedCardPurchase=async function(){
+    const id=document.getElementById('editCardPurchaseId').value;
+    const description=document.getElementById('editCardPurchaseDescription').value.trim();
+    const category=document.getElementById('editCardPurchaseCategory').value;
+    const installmentAmount=Number(document.getElementById('editCardPurchaseInstallmentAmount').value);
+
+    if(!id||!description||installmentAmount<=0){
+      alert('Preencha corretamente a descrição e o valor da parcela.');
+      return;
+    }
+
+    const {error}=await supabaseClient.rpc('update_my_card_purchase',{
+      p_purchase_id:id,
+      p_group_id:GROUP_ID,
+      p_description:description,
+      p_category:category||null,
+      p_installment_amount:installmentAmount
+    });
+
+    if(error){
+      alert('Erro ao editar compra: '+error.message);
+      return;
+    }
+
+    closeEditCardPurchase();
+    await loadCloudData();
+    renderAll();
+  };
+
+  const previousRenderModelDashboard=window.renderModelDashboard;
+  window.renderModelDashboard=function(){
+    if(typeof previousRenderModelDashboard==='function'){
+      try{ previousRenderModelDashboard(); }catch(e){ console.error(e); }
+    }
+
+    const tx=Array.isArray(transactions)?transactions:[];
+    const installments=Array.isArray(cardInstallments)?cardInstallments:[];
+    const pendingExpenses=tx.filter(t=>!t.paid&&t.type==='expense');
+    const unpaid=installments.filter(i=>!i.paid);
+
+    const byCard={};
+    unpaid.forEach(i=>{
+      const card=String(i.card_id||'');
+      const month=String(i.invoice_month||'').slice(0,7);
+      if(!card||!month)return;
+      byCard[card]??={};
+      byCard[card][month]=(byCard[card][month]||0)+Number(i.amount||0);
+    });
+
+    const currentInvoices=[];
+    const futureInvoices=[];
+    Object.entries(byCard).forEach(([card,months])=>{
+      const keys=Object.keys(months).sort();
+      if(!keys.length)return;
+      currentInvoices.push({card,month:keys[0],total:months[keys[0]]});
+      keys.slice(1).forEach(month=>futureInvoices.push({card,month,total:months[month]}));
+    });
+
+    const currentInvoiceTotal=currentInvoices.reduce((s,x)=>s+x.total,0);
+    const futureInvoiceTotal=futureInvoices.reduce((s,x)=>s+x.total,0);
+    const pendingExpenseTotal=pendingExpenses.reduce((s,t)=>s+Number(t.amount||0),0);
+
+    const payable=document.getElementById('modelPayable');
+    if(payable) payable.textContent=money(pendingExpenseTotal+currentInvoiceTotal);
+
+    const payableCount=document.getElementById('modelPayableCount');
+    if(payableCount){
+      const parts=[];
+      if(pendingExpenses.length) parts.push(`${pendingExpenses.length} ${pendingExpenses.length===1?'lançamento':'lançamentos'}`);
+      if(currentInvoices.length) parts.push(`${currentInvoices.length} ${currentInvoices.length===1?'fatura atual':'faturas atuais'}`);
+      payableCount.textContent=parts.length?parts.join(' + '):'0 compromissos';
+    }
+
+    const future=document.getElementById('futureInvoices');
+    if(future) future.textContent=money(futureInvoiceTotal);
+
+    const futureCount=document.getElementById('modelInvoiceCount');
+    if(futureCount) futureCount.textContent=`${futureInvoices.length} ${futureInvoices.length===1?'fatura':'faturas'}`;
   };
 })();
 </script>
