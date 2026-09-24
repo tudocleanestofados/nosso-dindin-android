@@ -36,7 +36,10 @@ jobs:
           echo "Arquivos principais encontrados."
 
       - name: Instalar dependencias
-        run: npm install
+        run: npm ci
+
+      - name: Preparar leitor de cupons
+        run: npm run build:receipt
 
       - name: Criar projeto Android
         run: npx cap add android
