@@ -1891,7 +1891,7 @@ body.auth-required main{visibility:hidden !important}
 </div></div>
 
 <div id="cardModal" class="modal hidden"><div class="modal-content"><button class="close" onclick="closeCardModal()">×</button><h2>Novo cartão</h2><br><label>Nome do cartão</label><input id="cardName" placeholder="Ex.: Nubank"><label>Limite total</label><input type="number" id="cardLimit" step="0.01" placeholder="0,00"><label>Dia de fechamento</label><input type="number" id="cardClosing" min="1" max="31"><label>Dia de vencimento</label><input type="number" id="cardDue" min="1" max="31"><button class="primary" onclick="saveCreditCard()">Salvar cartão</button></div></div>
-<div id="purchaseModal" class="modal hidden"><div class="modal-content"><button class="close" onclick="closePurchaseModal()">×</button><h2>Nova compra no cartão</h2><br><label>Cartão</label><select id="purchaseCard"></select><label>Descrição</label><input id="purchaseDescription"><label>Valor total</label><input type="number" id="purchaseAmount" step="0.01"><label>Data da compra</label><input type="date" id="purchaseDate"><label>Categoria</label><select id="purchaseCategory"></select><label>Parcelas</label><input type="number" id="purchaseInstallments" min="1" max="120" value="1"><button class="primary" onclick="saveCardPurchase()">Salvar compra</button></div></div>
+<div id="purchaseModal" class="modal hidden"><div class="modal-content"><button class="close" onclick="closePurchaseModal()">×</button><h2>Nova compra no cartão</h2><br><label>Cartão</label><select id="purchaseCard"></select><label>Descrição</label><input id="purchaseDescription"><label>Valor total</label><input type="number" id="purchaseAmount" step="0.01"><label>Data da compra</label><input type="date" id="purchaseDate"><label>Categoria</label><select id="purchaseCategory"></select><label>Parcelas</label><input type="number" id="purchaseInstallments" min="1" max="120" value="1" oninput="updateExistingPurchaseFields()"><label class="nd-old-purchase-toggle"><input type="checkbox" id="purchaseExisting" onchange="updateExistingPurchaseFields()"> Compra antiga / parcelamento em andamento</label><div id="purchaseExistingFields" class="hidden"><label>Qual é a próxima parcela?</label><input type="number" id="purchaseNextInstallment" min="1" max="120" value="1"><label>Onde entra a próxima parcela?</label><select id="purchaseFirstInvoice"><option value="current">Fatura atual</option><option value="next">Próxima fatura</option></select><small id="purchaseExistingHint">Serão cadastradas somente as parcelas que ainda faltam.</small></div><button class="primary" onclick="saveCardPurchase()">Salvar compra</button></div></div>
 
 <div id="transactionModal" class="modal hidden"><div class="modal-content">
 <button class="close" onclick="closeTransactionModal()">×</button><h2>Novo lançamento</h2><br>
@@ -7617,6 +7617,128 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
   window.addEventListener('load',function(){
     setTimeout(syncGreetingFromSession,350);
   });
+})();
+</script>
+
+
+<style id="v69-existing-card-purchase">
+#purchaseModal .nd-old-purchase-toggle{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  margin-top:14px;
+  margin-bottom:8px;
+  font-weight:600;
+}
+#purchaseModal .nd-old-purchase-toggle input{
+  width:auto;
+  margin:0;
+}
+#purchaseExistingFields{
+  margin-top:8px;
+  padding:12px;
+  border:1px solid var(--border,#dce3ea);
+  border-radius:10px;
+  background:rgba(127,127,127,.05);
+}
+#purchaseExistingHint{
+  display:block;
+  margin-top:8px;
+  line-height:1.35;
+}
+</style>
+
+<script id="v69-existing-card-purchase">
+(function(){
+  window.updateExistingPurchaseFields=function(){
+    const enabled=!!document.getElementById('purchaseExisting')?.checked;
+    const wrap=document.getElementById('purchaseExistingFields');
+    if(wrap) wrap.classList.toggle('hidden',!enabled);
+
+    const total=Math.max(1,Number(document.getElementById('purchaseInstallments')?.value||1));
+    const next=document.getElementById('purchaseNextInstallment');
+    if(next){
+      next.max=String(total);
+      const n=Number(next.value||1);
+      if(n>total) next.value=String(total);
+      if(n<1) next.value='1';
+    }
+
+    const hint=document.getElementById('purchaseExistingHint');
+    if(hint && enabled){
+      const n=Math.max(1,Math.min(total,Number(next?.value||1)));
+      const remaining=total-n+1;
+      hint.textContent=`Serão cadastradas somente ${remaining} parcela${remaining===1?'':'s'} restante${remaining===1?'':'s'}, começando em ${n}/${total}.`;
+    }
+  };
+
+  const previousOpenPurchaseModal=window.openPurchaseModal;
+  window.openPurchaseModal=function(){
+    previousOpenPurchaseModal();
+    const existing=document.getElementById('purchaseExisting');
+    if(existing) existing.checked=false;
+    const next=document.getElementById('purchaseNextInstallment');
+    if(next) next.value='1';
+    const first=document.getElementById('purchaseFirstInvoice');
+    if(first) first.value='current';
+    updateExistingPurchaseFields();
+  };
+
+  document.getElementById('purchaseNextInstallment')?.addEventListener('input',updateExistingPurchaseFields);
+
+  window.saveCardPurchase=async function(){
+    const card=document.getElementById('purchaseCard').value;
+    const desc=document.getElementById('purchaseDescription').value.trim();
+    const amount=Number(document.getElementById('purchaseAmount').value);
+    const date=document.getElementById('purchaseDate').value;
+    const category=document.getElementById('purchaseCategory').value.trim();
+    const inst=Number(document.getElementById('purchaseInstallments').value);
+    const existing=!!document.getElementById('purchaseExisting')?.checked;
+
+    if(!card||!desc||amount<=0||!date||!Number.isInteger(inst)||inst<1){
+      alert('Preencha corretamente a compra.');
+      return;
+    }
+
+    let rpc='save_my_card_purchase';
+    let args={
+      p_id:crypto.randomUUID(),
+      p_group_id:GROUP_ID,
+      p_card_id:card,
+      p_description:desc,
+      p_total_amount:amount,
+      p_purchase_date:date,
+      p_category:category||null,
+      p_installments:inst
+    };
+
+    if(existing){
+      const next=Number(document.getElementById('purchaseNextInstallment').value);
+      const firstInvoice=document.getElementById('purchaseFirstInvoice').value;
+
+      if(!Number.isInteger(next)||next<1||next>inst){
+        alert('Informe corretamente qual é a próxima parcela.');
+        return;
+      }
+
+      rpc='save_my_existing_card_purchase';
+      args={
+        ...args,
+        p_next_installment:next,
+        p_first_invoice:firstInvoice
+      };
+    }
+
+    const {error}=await supabaseClient.rpc(rpc,args);
+    if(error){
+      alert('Erro ao salvar compra: '+error.message);
+      return;
+    }
+
+    closePurchaseModal();
+    await loadCloudData();
+    renderAll();
+  };
 })();
 </script>
 
