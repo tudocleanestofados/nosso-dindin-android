@@ -24,7 +24,7 @@
   };
 
   function monthlyForecast() {
-    const month = localDay().slice(0, 7);
+    const month = window.ND_SELECTED_MONTH || localDay().slice(0, 7);
     const categories = new Map();
     let paid = 0, pending = 0;
     const invoicePaymentTx = new Set((invoicePayments || []).map(x => x.transaction_id).filter(Boolean));
