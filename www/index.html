@@ -1637,7 +1637,7 @@ body.auth-required main{visibility:hidden !important}
       </div>
 
       <div class="card nd-card-month-summary">
-        <small>Resumo geral do mês</small>
+        <small>Compras feitas no mês</small>
         <strong id="cardMonthTotal">R$ 0,00</strong>
         <span id="cardMonthLabel">Total gasto nos cartões</span>
       </div>
@@ -3775,7 +3775,7 @@ function renderCards(){
    .reduce((sum,p)=>sum+Number(p.total_amount||0),0);
 
  if(monthTotal) monthTotal.textContent=money(monthSpent);
- if(monthLabel) monthLabel.textContent=`Total gasto nos cartões em ${monthName}`;
+ if(monthLabel) monthLabel.textContent=`Valor total das compras registradas em ${monthName}, inclusive compras parceladas.`;
 
  if(!creditCards.length){
    list.innerHTML="<small>Nenhum cartão cadastrado.</small>";
@@ -3837,13 +3837,13 @@ function renderCards(){
    const currentHtml=current
      ? `<div class="nd-current-invoice">
           <div>
-            <small>Fatura atual</small>
+            <small>Fatura com vencimento em ${dueDateForInvoice(current.month,card.due_day)}</small>
             <strong>${money(current.total)}</strong>
-            <span>Vencimento ${dueDateForInvoice(current.month,card.due_day)}</span>
+            <span>Inclui parcelas de compras de outros meses, quando houver.</span>
           </div>
           <button class="primary" onclick="payInvoice('${card.id}','${current.month}')">Pagar fatura</button>
         </div>`
-     : `<div class="nd-empty-line"><small>Fatura atual</small><span>Nenhuma fatura pendente.</span></div>`;
+     : `<div class="nd-empty-line"><small>Fatura a vencer</small><span>Nenhuma fatura pendente.</span></div>`;
 
    const futureHtml=future.length
      ? future.map(inv=>`
@@ -7925,5 +7925,7 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 })();
 </script>
 
+<script src="receipt-native.js" onerror="this.remove()"></script>
+<script src="features.js"></script>
 </body>
 </html>
