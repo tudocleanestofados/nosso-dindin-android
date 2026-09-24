@@ -1,4 +1,4 @@
-name: Gerar APK Nosso Dindin
+name: Preparar APK oficial Nosso Dindin
 
 on:
   workflow_dispatch:
@@ -55,18 +55,18 @@ jobs:
       - name: Sincronizar aplicativo
         run: npx cap sync android
 
-      - name: Gerar APK de teste
+      - name: Compilar APK de producao sem assinatura
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
 
       - name: Verificar APK gerado
         run: |
-          test -f android/app/build/outputs/apk/debug/app-debug.apk
-          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
+          test -f android/app/build/outputs/apk/release/app-release-unsigned.apk
+          ls -lh android/app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nosso-Dindin-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Nosso-Dindin-Release-Sem-Assinatura
+          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
