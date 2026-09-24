@@ -1546,7 +1546,7 @@ body.auth-required main{visibility:hidden !important}
       <input id="globalSearch" placeholder="Buscar..." oninput="filterTransactions(this.value)">
     </div>
     <button class="top-link" onclick="showSection('notificationsSection',document.querySelectorAll('.nav button')[6]);loadDueNotifications();loadMovementAlerts()">
-      <span class="bell-wrap"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><b>3</b></span>Avisos
+      <span class="bell-wrap"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><b class="hidden"></b></span>Avisos
     </button>
     <button class="top-link" onclick="showSection('assistantSection',document.querySelectorAll('.nav button')[7])">
       <svg class="spark" viewBox="0 0 24 24"><path d="m12 2 1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7z"/></svg>Assistente
@@ -4006,19 +4006,20 @@ function renderGoals(){
 
 
 async function loadDueNotifications(){
- const box=document.getElementById("notificationList"); if(!box)return;
- if(!currentUser||!GROUP_ID){box.innerHTML="<small>Faça login e configure o grupo.</small>";return;}
+ const box=document.getElementById("notificationList"); if(!box)return [];
+ if(!currentUser||!GROUP_ID){box.innerHTML="<small>Faça login e configure o grupo.</small>";return [];}
  box.innerHTML="<small>Carregando vencimentos...</small>";
  try{
   const request=supabaseClient.rpc("get_my_due_notifications",{p_group_id:GROUP_ID});
   const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error("A consulta demorou mais de 12 segundos.")),12000));
   const {data,error}=await Promise.race([request,timeout]); if(error)throw error;
   const rows=Array.isArray(data)?data:[];
-  if(!rows.length){box.innerHTML="<small>Nenhum vencimento próximo.</small>";return;}
+  if(!rows.length){box.innerHTML="<small>Nenhum vencimento próximo.</small>";return [];}
   box.innerHTML=rows.map(x=>{const d=new Date(String(x.due_date)+"T12:00:00").toLocaleDateString("pt-BR");
    const v=Number(x.amount||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
    return `<div style="padding:10px 0;border-bottom:1px solid #ddd"><strong>${escapeNotificationText(x.description)}</strong><br><small>Vence em ${d} • ${v}</small></div>`;}).join("");
- }catch(e){console.error(e);box.textContent="Erro ao carregar avisos: "+(e?.message||"erro desconhecido");}
+  return rows;
+ }catch(e){console.error(e);box.textContent="Erro ao carregar avisos: "+(e?.message||"erro desconhecido");return [];}
 }
 function escapeNotificationText(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 
@@ -5783,7 +5784,7 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
  function build(){
    if(document.querySelector('.ndm-top'))return;
    const top=document.createElement('div');top.className='ndm-top';
-   top.innerHTML='<button class="ndm-menu" aria-label="Menu">'+I.menu+'</button><div class="ndm-brand">Nosso Dindin</div><div class="ndm-actions"><button class="ndm-bell" aria-label="Avisos">'+I.bell+'<b class="ndm-badge">3</b></button><button class="ndm-assistant" aria-label="Assistente">'+I.spark+'</button></div>';
+   top.innerHTML='<button class="ndm-menu" aria-label="Menu">'+I.menu+'</button><div class="ndm-brand">Nosso Dindin</div><div class="ndm-actions"><button class="ndm-bell" aria-label="Avisos">'+I.bell+'<b class="ndm-badge hidden"></b></button><button class="ndm-assistant" aria-label="Assistente">'+I.spark+'</button></div>';
    document.body.appendChild(top);
 
    const dash=document.querySelector('#dashboardSection .model-dashboard');
@@ -7928,5 +7929,6 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 <script src="receipt-native.js" onerror="this.remove()"></script>
 <script src="features.js"></script>
 <script src="finance-enhancements.js"></script>
+<script src="monthly-dashboard.js"></script>
 </body>
 </html>
