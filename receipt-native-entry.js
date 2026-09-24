@@ -11,7 +11,16 @@ window.NDReceiptNative = {
       correctOrientation: true
     });
     if (!photo.path) throw new Error('Não foi possível acessar o arquivo da imagem.');
-    const { text } = await TextRecognition.processImage({ path: photo.path, script: Script.Latin });
-    return { text, preview: photo.webPath || '' };
+    try {
+      const { text } = await TextRecognition.processImage({ path: photo.path, script: Script.Latin });
+      return { text, preview: photo.webPath || '' };
+    } catch (error) {
+      console.warn('Falha ao ler a foto do cupom:', error);
+      return {
+        text: '',
+        preview: photo.webPath || '',
+        warning: 'Foto capturada, mas a leitura do texto falhou. Preencha os dados manualmente e confira antes de continuar.'
+      };
+    }
   }
 };

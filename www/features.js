@@ -7,7 +7,66 @@
   const originalUpdate = window.updateSmartTransactionForm;
   const originalSave = window.saveSmartTransaction;
   const originalReset = window.resetTxForm;
+  const originalRenderTransactions = window.renderTransactions;
   let saving = false;
+  let ledgerTab = 'expenses';
+  let receiptReturnToTransaction = false;
+
+  function renderInvoiceLedger() {
+    const list = el('allTransactions');
+    const cardsById = new Map(creditCards.map(card => [card.id, card]));
+    const purchasesById = new Map(cardPurchases.map(purchase => [purchase.id, purchase]));
+    const groups = new Map();
+    cardInstallments.forEach(item => {
+      const month = String(item.invoice_month || '').slice(0, 7);
+      if (!month) return;
+      const key = `${item.card_id}:${month}`;
+      if (!groups.has(key)) groups.set(key, { cardId: item.card_id, month, items: [] });
+      groups.get(key).items.push(item);
+    });
+    const invoices = [...groups.values()].sort((a, b) =>
+      a.month.localeCompare(b.month) || String(cardsById.get(a.cardId)?.name || '').localeCompare(String(cardsById.get(b.cardId)?.name || '')));
+    list.innerHTML = invoices.length ? invoices.map(invoice => {
+      const card = cardsById.get(invoice.cardId);
+      const [year, month] = invoice.month.split('-').map(Number);
+      const dueDay = Math.min(Number(card?.due_day || 1), new Date(Date.UTC(year, month + 1, 0)).getUTCDate());
+      const due = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(Date.UTC(year, month, dueDay)));
+      const total = invoice.items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const paid = invoice.items.every(item => item.paid);
+      const details = invoice.items.map(item => {
+        const purchase = purchasesById.get(item.purchase_id);
+        const number = Number(item.installment_number || 1);
+        const count = Number(purchase?.installments || 1);
+        return `<div class="nd-ledger-invoice-item"><span>${escapeHtml(purchase?.description || 'Compra no cartão')}${count > 1 ? ` (${number}/${count})` : ''}</span><strong>${money(Number(item.amount || 0))}</strong></div>`;
+      }).join('');
+      return `<div class="nd-ledger-invoice"><div class="nd-ledger-invoice-head"><div><strong>${escapeHtml(card?.name || 'Cartão')}</strong><small>Fatura com vencimento em ${due}</small></div><strong>${money(total)}</strong></div><small>${paid ? 'Paga' : 'Pendente'}</small>${details}</div>`;
+    }).join('') : '<div class="empty">Nenhuma fatura ou compra no cartão cadastrada.</div>';
+  }
+
+  window.renderTransactions = function () {
+    originalRenderTransactions();
+    if (transactionViewFilter === 'receivable') ledgerTab = 'income';
+    if (transactionViewFilter === 'payable') ledgerTab = 'expenses';
+    document.querySelectorAll('#ndLedgerTabs button').forEach(button => {
+      const selected = button.dataset.ledgerTab === ledgerTab;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    if (ledgerTab === 'cards') { renderInvoiceLedger(); return; }
+    if (transactionViewFilter) return; // O atalho do início preserva a lista de pendentes.
+    const type = ledgerTab === 'income' ? 'income' : 'expense';
+    const selected = transactions.filter(item => item.type === type)
+      .sort((a, b) => String(b.date || b.due_date || '').localeCompare(String(a.date || a.due_date || '')));
+    el('allTransactions').innerHTML = selected.length ? selected.map(renderTransaction).join('')
+      : `<div class="empty">Nenhuma ${type === 'income' ? 'receita' : 'despesa'} cadastrada.</div>`;
+  };
+
+  window.setLedgerTab = function (tab) {
+    if (!['income', 'expenses', 'cards'].includes(tab)) return;
+    ledgerTab = tab;
+    transactionViewFilter = null;
+    renderTransactions();
+  };
 
   function dueDate(first, offset) {
     const [year, month, day] = first.split('-').map(Number);
@@ -156,6 +215,13 @@
 
   window.openReceiptCapture = async function (source) {
     if (!currentUser) { alert('Entre na sua conta antes de lançar um cupom.'); return; }
+    const transactionModal = el('transactionModal');
+    if (!transactionModal.classList.contains('hidden')) {
+      receiptReturnToTransaction = true;
+      transactionModal.classList.add('hidden');
+      document.documentElement.classList.remove('nd-transaction-open');
+      document.body.classList.remove('nd-transaction-open');
+    }
     const modal = el('ndReceiptModal');
     modal.classList.remove('hidden');
     el('ndReceiptStatus').textContent = 'Lendo a imagem no aparelho...';
@@ -175,9 +241,10 @@
       el('ndReceiptPayment').value = data.payment;
       const cats = [...new Set([...EXPENSE_CATEGORIES, ...customCats('expense')])];
       el('ndReceiptCategory').replaceChildren(new Option('Escolha a categoria', ''), ...cats.map(x => new Option(x, x)));
-      el('ndReceiptStatus').textContent = data.ambiguous
+      el('ndReceiptStatus').textContent = result.warning || (!result.text?.trim()
+        ? 'Não encontrei texto na imagem. Preencha os dados manualmente e confira antes de continuar.' : data.ambiguous
         ? 'Há valores totais diferentes na imagem. Confira e preencha o valor correto.'
-        : 'Confira todos os campos; o cupom ainda não foi salvo.';
+        : 'Confira todos os campos; o cupom ainda não foi salvo.');
       el('ndReceiptReview').classList.remove('hidden');
     } catch (error) {
       el('ndReceiptStatus').textContent = /cancel/i.test(String(error?.message || error))
@@ -185,9 +252,11 @@
     }
   };
 
-  window.closeReceiptCapture = function () {
+  window.closeReceiptCapture = function (restoreTransaction = true) {
     el('ndReceiptModal').classList.add('hidden');
     el('ndReceiptPreview').removeAttribute('src');
+    if (restoreTransaction && receiptReturnToTransaction) el('transactionModal').classList.remove('hidden');
+    receiptReturnToTransaction = false;
   };
 
   window.useReceiptDraft = function () {
@@ -202,7 +271,7 @@
     if (!payment) { alert('Confirme a forma de pagamento antes de continuar.'); return; }
     if (payment === 'credit') {
       if (!creditCards.length) { alert('Cadastre o cartão correspondente para esta compra.'); return; }
-      closeReceiptCapture();
+      closeReceiptCapture(false);
       openPurchaseModal();
       el('purchaseDescription').value = description;
       el('purchaseAmount').value = amount.toFixed(2);
@@ -211,7 +280,7 @@
       alert('Confira o cartão, a categoria e a quantidade de parcelas antes de salvar.');
     } else {
       if (!accounts.length) { alert('Cadastre uma conta para lançar a despesa paga.'); return; }
-      closeReceiptCapture();
+      closeReceiptCapture(false);
       openTransactionModal();
       chooseTxType('expense');
       el('transactionDescription').value = description;
@@ -226,6 +295,11 @@
   };
 
   function init() {
+    const tabs = document.createElement('nav');
+    tabs.id = 'ndLedgerTabs';
+    tabs.setAttribute('aria-label', 'Tipo de lançamento');
+    tabs.innerHTML = `<button type="button" data-ledger-tab="income" onclick="setLedgerTab('income')">Receitas</button><button type="button" data-ledger-tab="expenses" onclick="setLedgerTab('expenses')">Despesas</button><button type="button" data-ledger-tab="cards" onclick="setLedgerTab('cards')">Cartões / Faturas</button>`;
+    el('transactionsSection').querySelector('.card:first-child').append(tabs);
     const installment = document.createElement('div');
     installment.innerHTML = `<div id="ndPaymentModeWrap" class="form-block hidden"><label>Onde foi feito o parcelamento?</label><select id="ndPaymentMode" onchange="updateSmartTransactionForm()"><option value="">Selecione...</option><option value="card">No cartão</option><option value="no_card">Sem cartão (acordo ou despesa)</option></select></div>
       <div id="ndNonCardFields" class="form-block hidden"><label>Categoria</label><select id="ndInstallmentCategory"></select>
@@ -259,7 +333,7 @@
       <label>Categoria</label><select id="ndReceiptCategory"></select><button class="primary" onclick="useReceiptDraft()">Usar no lançamento</button></div></div>`;
     document.body.append(modal);
     const styles = document.createElement('style');
-    styles.textContent = `.nd-feature-hint{display:block;color:var(--muted,#a6b5c4);font-size:13px;line-height:1.4;margin:10px 0}.nd-inline-check{display:flex;align-items:center;gap:10px;margin-top:12px}.nd-inline-check input{width:auto!important}.nd-scan-entry{display:block;width:100%;margin-top:14px;padding:13px;border:1px solid #3f698e;border-radius:12px;background:#153b5b;color:#fff;font-weight:700}.nd-receipt-content{max-height:88vh;overflow:auto}.nd-receipt-choices{display:flex;gap:8px;margin:12px 0}.nd-receipt-choices button{flex:1}.nd-receipt-content img{display:block;max-width:100%;max-height:180px;object-fit:contain;margin:8px auto}.nd-receipt-content img:not([src]){display:none}.nd-receipt-content label{display:block;margin-top:10px}.nd-receipt-content input,.nd-receipt-content select{width:100%}.nd-receipt-content .primary{margin-top:18px}`;
+    styles.textContent = `.nd-feature-hint{display:block;color:var(--muted,#a6b5c4);font-size:13px;line-height:1.4;margin:10px 0}.nd-inline-check{display:flex;align-items:center;gap:10px;margin-top:12px}.nd-inline-check input{width:auto!important}.nd-scan-entry{display:block;width:100%;margin-top:14px;padding:13px;border:1px solid #3f698e;border-radius:12px;background:#153b5b;color:#fff;font-weight:700}#ndReceiptModal{z-index:6000!important}#ndReceiptModal .nd-receipt-content{max-height:min(90dvh,850px);overflow:auto}#ndLedgerTabs{display:flex;gap:8px;margin-top:16px;overflow-x:auto}#ndLedgerTabs button{flex:1;min-width:max-content;border:1px solid #4c6780;border-radius:10px;background:transparent;color:var(--text,#dce7f1);padding:10px 12px;font-weight:700}#ndLedgerTabs button.active{background:#1d73d8;border-color:#1d73d8;color:#fff}.nd-ledger-invoice{padding:16px 0;border-bottom:1px solid var(--line,#415166)}.nd-ledger-invoice-head,.nd-ledger-invoice-item{display:flex;justify-content:space-between;gap:12px;align-items:center}.nd-ledger-invoice-head small{display:block;margin:5px 0}.nd-ledger-invoice-item{padding:7px 0}.nd-ledger-invoice-item strong{white-space:nowrap}.nd-receipt-choices{display:flex;gap:8px;margin:12px 0}.nd-receipt-choices button{flex:1}.nd-receipt-content img{display:block;max-width:100%;max-height:180px;object-fit:contain;margin:8px auto}.nd-receipt-content img:not([src]){display:none}.nd-receipt-content label{display:block;margin-top:10px}.nd-receipt-content input,.nd-receipt-content select{width:100%}.nd-receipt-content .primary{margin-top:18px}`;
     document.head.append(styles);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
