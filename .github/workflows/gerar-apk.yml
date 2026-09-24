@@ -55,6 +55,22 @@ jobs:
       - name: Sincronizar aplicativo
         run: npx cap sync android
 
+      - name: Incrementar versao oficial
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          path = Path('android/app/build.gradle')
+          content = path.read_text()
+          run = int(os.environ['GITHUB_RUN_NUMBER'])
+          content, code_count = re.subn(r'\bversionCode\s+\d+', f'versionCode {1000 + run}', content, count=1)
+          content, name_count = re.subn(r'\bversionName\s+"[^"]+"', f'versionName "1.0.{run}"', content, count=1)
+          if code_count != 1 or name_count != 1:
+              raise RuntimeError('Versao do Android nao encontrada no build.gradle')
+          path.write_text(content)
+          PY
+
       - name: Compilar APK de producao sem assinatura
         working-directory: android
         run: ./gradlew assembleRelease
