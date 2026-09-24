@@ -3853,7 +3853,7 @@ function renderCards(){
              <small>${money(p.total_amount)}</small>
            </div>
            <div class="nd-purchase-side">
-             <span>Parcela ${String(currentNo).padStart(2,"0")}/${String(totalNo).padStart(2,"0")}</span>
+             ${totalNo>1?`<span>Parcela ${String(currentNo).padStart(2,"0")}/${String(totalNo).padStart(2,"0")}</span>`:''}
              <button class="secondary nd-edit-purchase-btn" type="button" onclick="openEditCardPurchase('${p.id}')">Editar</button>
            </div>
          </div>`;
@@ -7752,6 +7752,7 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 <input type="hidden" id="editCardPurchaseId">
 <label>Descrição</label><input id="editCardPurchaseDescription">
 <label>Categoria</label><select id="editCardPurchaseCategory"></select>
+<label>Data da compra</label><input id="editCardPurchaseDate" type="date">
 <label>Total de parcelas</label><input id="editCardPurchaseTotalInstallments" type="number" disabled>
 <label>Valor de cada parcela</label><input id="editCardPurchaseInstallmentAmount" type="number" min="0.01" step="0.01">
 <small>Ao salvar, o valor será aplicado às parcelas que ainda não foram pagas e o total da compra será recalculado.</small>
@@ -7801,6 +7802,7 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 
     document.getElementById('editCardPurchaseId').value=id;
     document.getElementById('editCardPurchaseDescription').value=p.description||'';
+    document.getElementById('editCardPurchaseDate').value=String(p.purchase_date||'').slice(0,10);
     document.getElementById('editCardPurchaseTotalInstallments').value=Number(p.installments||rows.length||1);
     document.getElementById('editCardPurchaseInstallmentAmount').value=Number(pending?.amount||0).toFixed(2);
 
@@ -7821,9 +7823,10 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
     const id=document.getElementById('editCardPurchaseId').value;
     const description=document.getElementById('editCardPurchaseDescription').value.trim();
     const category=document.getElementById('editCardPurchaseCategory').value;
+    const date=document.getElementById('editCardPurchaseDate').value;
     const installmentAmount=Number(document.getElementById('editCardPurchaseInstallmentAmount').value);
 
-    if(!id||!description||installmentAmount<=0){
+    if(!id||!description||!date||installmentAmount<=0){
       alert('Preencha corretamente a descrição e o valor da parcela.');
       return;
     }
@@ -7833,7 +7836,8 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
       p_group_id:GROUP_ID,
       p_description:description,
       p_category:category||null,
-      p_installment_amount:installmentAmount
+      p_installment_amount:installmentAmount,
+      p_purchase_date:date
     });
 
     if(error){
