@@ -7581,7 +7581,9 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
     }
 
     if(saved) return saved;
-    return fallbackNameFromEmail();
+    const meta=currentUser?.user_metadata||{};
+    const metaName=String(meta.full_name||meta.name||'').trim();
+    return metaName || fallbackNameFromEmail();
   };
 
   window.userInitials=function(){
@@ -7595,6 +7597,7 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
   };
 
   window.updateGreeting=function(){
+    if(!currentUser) return;
     const h=new Date().getHours();
     const sal=h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';
     const name=userDisplayName();
@@ -7614,6 +7617,10 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 
     const mobile=document.querySelector('.ndm-mobile-profile b');
     if(mobile) mobile.textContent=name;
+    const mobileGreeting=document.querySelector('.ndm-greeting h2');
+    if(mobileGreeting) mobileGreeting.textContent=`${sal}, ${name.split(/\s+/)[0]}!`;
+    const mobileName=document.getElementById('ndmName');
+    if(mobileName) mobileName.textContent=name.split(/\s+/)[0];
   };
 
   async function syncGreetingFromSession(){
@@ -7627,8 +7634,9 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
     }catch(_){}
   }
 
-  supabaseClient.auth.onAuthStateChange(function(){
-    setTimeout(syncGreetingFromSession,80);
+  supabaseClient.auth.onAuthStateChange(function(event, session){
+    currentUser=session?.user||null;
+    if(currentUser) setTimeout(syncGreetingFromSession,80);
   });
 
   window.addEventListener('load',function(){
