@@ -4,15 +4,19 @@
   "private": true,
   "scripts": {
     "android:sync": "npx cap sync android",
-    "android:add": "npx cap add android"
+    "android:add": "npx cap add android",
+    "build:receipt": "esbuild receipt-native-entry.js --bundle --format=iife --platform=browser --outfile=www/receipt-native.js"
   },
   "dependencies": {
+    "@capacitor-mlkit/text-recognition": "8.2.1",
     "@capacitor/android": "8.0.0",
+    "@capacitor/camera": "8.2.4",
     "@capacitor/core": "8.0.0",
     "@capacitor/push-notifications": "8.0.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "3.0.5",
     "@capacitor/cli": "8.0.0",
-    "@capacitor/assets": "3.0.5"
+    "esbuild": "0.25.12"
   }
 }
