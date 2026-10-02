@@ -5,10 +5,12 @@
   "scripts": {
     "android:sync": "npx cap sync android",
     "android:add": "npx cap add android",
-    "build:receipt": "esbuild receipt-native-entry.js --bundle --format=iife --platform=browser --outfile=www/receipt-native.js"
+    "build:receipt": "esbuild receipt-native-entry.js --bundle --format=iife --platform=browser --outfile=www/receipt-native.js",
+    "build:updates": "esbuild update-native-entry.js --bundle --format=iife --platform=browser --outfile=www/update-native.js"
   },
   "dependencies": {
     "@capacitor-mlkit/text-recognition": "8.2.1",
+    "@capgo/capacitor-updater": "8.51.18",
     "@capacitor/android": "8.0.0",
     "@capacitor/camera": "8.2.4",
     "@capacitor/core": "8.0.0",

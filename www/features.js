@@ -156,9 +156,10 @@
     if (!confirm(`Criar ${info.rows.length} despesas de ${description}?\n${el('ndSeriesPreview').textContent}\n\nAs parcelas anteriores não serão cadastradas.`)) return;
     saving = true;
     try {
+      const seriesId = crypto.randomUUID();
       const { error } = await supabaseClient.rpc('create_my_noncard_installments', {
         p_group_id: GROUP_ID,
-        p_series_id: crypto.randomUUID(),
+        p_series_id: seriesId,
         p_description: description,
         p_category: el('ndInstallmentCategory').value,
         p_amount_cents: info.amount,
@@ -169,6 +170,7 @@
         p_last_amount_cents: info.last
       });
       if (error) throw error;
+      if (typeof ndGscTag === 'function') await ndGscTag({ series: seriesId });
       closeTransactionModal();
       await loadCloudData();
       renderAll();

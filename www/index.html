@@ -678,6 +678,9 @@ body.auth-required #notificationsSection,
 body.auth-required #assistantSection{
   display:none !important;
 }
+body.auth-required #gscSection{
+  display:none !important;
+}
 body.auth-required #settingsSection{ display:block !important; }
 body.auth-required .nav button:not([onclick*="settingsSection"]){ opacity:.45; pointer-events:none; }
 </style>
@@ -1796,7 +1799,16 @@ body.auth-required main{visibility:hidden !important}
       </div>
     </section>
 
+    <section id="gscSection" class="hidden">
+      <div class="card"><h2>Gasto sem Culpa</h2><p>Um valor para cada pessoa gastar no mês. O que sobrar passa para o mês seguinte.</p>
+        <label>Mês</label><input type="month" id="gscMonth" onchange="ndGscRender()">
+        <div id="gscMembers"></div>
+      </div>
+    </section>
     <section id="settingsSection" class="hidden">
+        <div class="card"><h3>Atualizações</h3><p id="ndUpdateStatus">Verificando versão instalada…</p>
+            <button class="secondary" type="button" onclick="ndCheckUpdates(true)">Verificar atualizações</button>
+        </div>
 
         <div class="card">
             <h3>Login</h3><br>
@@ -1860,6 +1872,11 @@ body.auth-required main{visibility:hidden !important}
 
         </div>
 
+        <div class="card v28-danger-zone">
+            <h3>Zerar dados financeiros</h3><p>Remove lançamentos, faturas, cartões, contas, metas e valores de Gasto sem Culpa desta família. Os usuários e o acesso à família permanecem.</p>
+            <p>Exporte uma cópia antes de continuar.</p><button class="secondary" type="button" onclick="ndExportFinance()">Exportar dados</button>
+            <button class="v28-delete-account-btn" type="button" onclick="ndResetFinance()">Zerar dados financeiros</button>
+        </div>
         <div class="card v28-danger-zone">
             <h3>Conta</h3>
             <br>
@@ -2301,7 +2318,7 @@ function showSection(
 ){
 
     document.querySelectorAll(
-        "#dashboardSection,#transactionsSection,#cardsSection,#accountsSection,#reportsSection,#goalsSection,#notificationsSection,#assistantSection,#settingsSection"
+        "#dashboardSection,#transactionsSection,#cardsSection,#accountsSection,#reportsSection,#goalsSection,#notificationsSection,#assistantSection,#settingsSection,#gscSection"
     )
     .forEach(
         el =>
@@ -4232,8 +4249,9 @@ async function saveSmartTransaction(){
      return;
    }
 
+   const purchaseId=crypto.randomUUID();
    const {error}=await supabaseClient.rpc('save_my_card_purchase',{
-     p_id:crypto.randomUUID(),
+     p_id:purchaseId,
      p_group_id:GROUP_ID,
      p_card_id:card,
      p_description:desc,
@@ -4248,6 +4266,7 @@ async function saveSmartTransaction(){
      return;
    }
 
+   if(typeof ndGscTag==='function') await ndGscTag({purchase:purchaseId});
    closeTransactionModal();
    await loadCloudData();
    renderAll();
@@ -4264,8 +4283,9 @@ async function saveSmartTransaction(){
  const date=paid?document.getElementById('transactionDate').value:(document.getElementById('transactionDueDate').value||today());
  const due=paid?null:document.getElementById('transactionDueDate').value;
 
+ const transactionId=crypto.randomUUID();
  const {error}=await supabaseClient.rpc('save_my_transaction',{
-   p_id:crypto.randomUUID(),
+   p_id:transactionId,
    p_group_id:GROUP_ID,
    p_type:type,
    p_description:desc,
@@ -4283,6 +4303,7 @@ async function saveSmartTransaction(){
    return;
  }
 
+ if(type==='expense'&&typeof ndGscTag==='function') await ndGscTag({transaction:transactionId});
  closeTransactionModal();
  await loadCloudData();
  renderAll();
@@ -4355,7 +4376,7 @@ function renderV3DashboardExtras(){
 function filterTransactions(q){q=(q||'').trim().toLowerCase();document.querySelectorAll('#allTransactions .transaction').forEach(el=>el.style.display=!q||el.textContent.toLowerCase().includes(q)?'':'none')}
 async function signInWithGoogle(){try{const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href.split('#')[0]}});if(error)throw error}catch(e){alert('Login Google ainda precisa ser ativado no Supabase/Google. A tela do aplicativo já está preparada.\n\n'+(e.message||''))}}
 const oldLoadCloudData=loadCloudData;loadCloudData=async function(){if(!supabaseClient||!currentUser||!GROUP_ID)return;const {data,error}=await supabaseClient.rpc('get_my_finance_data',{p_group_id:GROUP_ID});if(error){console.error(error);return}accounts=Array.isArray(data?.accounts)?data.accounts:[];transactions=Array.isArray(data?.transactions)?data.transactions:[];creditCards=Array.isArray(data?.credit_cards)?data.credit_cards:[];cardPurchases=Array.isArray(data?.card_purchases)?data.card_purchases:[];cardInstallments=Array.isArray(data?.card_installments)?data.card_installments:[];invoicePayments=Array.isArray(data?.invoice_payments)?data.invoice_payments:[];financialGoals=Array.isArray(data?.financial_goals)?data.financial_goals:[];goalMovements=Array.isArray(data?.goal_movements)?data.goal_movements:[];saveLocal();localStorage.setItem('creditCards',JSON.stringify(creditCards));localStorage.setItem('cardPurchases',JSON.stringify(cardPurchases));localStorage.setItem('cardInstallments',JSON.stringify(cardInstallments));localStorage.setItem('invoicePayments',JSON.stringify(invoicePayments));}
-const oldShowSection=showSection;showSection=function(id,button){document.querySelectorAll('#dashboardSection,#transactionsSection,#cardsSection,#accountsSection,#reportsSection,#goalsSection,#notificationsSection,#assistantSection,#settingsSection').forEach(el=>el.classList.add('hidden'));document.getElementById(id)?.classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));if(button)button.classList.add('active')}
+const oldShowSection=showSection;showSection=function(id,button){document.querySelectorAll('#dashboardSection,#transactionsSection,#cardsSection,#accountsSection,#reportsSection,#goalsSection,#notificationsSection,#assistantSection,#settingsSection,#gscSection').forEach(el=>el.classList.add('hidden'));document.getElementById(id)?.classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));if(button)button.classList.add('active')}
 document.addEventListener('DOMContentLoaded',()=>{installV2UI();setTimeout(()=>{installV2UI();renderAll();renderModelDashboard()},0)});
 </script>
 <div id="payTxModal" class="modal hidden"><div class="modal-content"><button class="close" onclick="document.getElementById('payTxModal').classList.add('hidden')">×</button><h2 id="payTxTitle">Pagar lançamento</h2><input type="hidden" id="payTxId"><br><label>Conta</label><select id="payTxAccount"></select><label>Data</label><input type="date" id="payTxDate"><button class="primary" onclick="confirmPayTransaction()">Confirmar</button></div></div>
@@ -4714,7 +4735,7 @@ refreshAuthUI=async function(){
             if(groupLabel) groupLabel.textContent="Grupo disponível após o login";
 
             // Abre diretamente a área de acesso.
-            document.querySelectorAll("#dashboardSection,#transactionsSection,#cardsSection,#accountsSection,#reportsSection,#goalsSection,#notificationsSection,#assistantSection,#settingsSection")
+            document.querySelectorAll("#dashboardSection,#transactionsSection,#cardsSection,#accountsSection,#reportsSection,#goalsSection,#notificationsSection,#assistantSection,#settingsSection,#gscSection")
               .forEach(el=>el.classList.add("hidden"));
             document.getElementById("settingsSection")?.classList.remove("hidden");
             document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
@@ -4747,7 +4768,7 @@ refreshAuthUI=async function(){
         if(pw){ pw.classList.remove("v19-loading"); pw.style.display="none"; }
 
         // v21: mantém a última tela aberta nesta aba, inclusive após F5/atualização.
-        const validSections=["dashboardSection","transactionsSection","cardsSection","accountsSection","reportsSection","goalsSection","notificationsSection","assistantSection","settingsSection"];
+        const validSections=["dashboardSection","transactionsSection","cardsSection","accountsSection","reportsSection","goalsSection","notificationsSection","assistantSection","settingsSection","gscSection"];
         let target=sessionStorage.getItem("nosso_dindin_active_section") || "dashboardSection";
         if(!validSections.includes(target)) target="dashboardSection";
         document.querySelectorAll("#"+validSections.join(",#")).forEach(el=>el.classList.add("hidden"));
@@ -4918,7 +4939,7 @@ renderAll=function(){v20RenderAll();setTimeout(()=>loadFamilyMembers().catch(con
 <script id="v21-navigation-persistence">
 /* v21 — preserva a seção atual ao trocar de aba, sincronizar ou recarregar */
 (function(){
-  const allowed=new Set(["dashboardSection","transactionsSection","cardsSection","accountsSection","reportsSection","goalsSection","notificationsSection","assistantSection","settingsSection"]);
+  const allowed=new Set(["dashboardSection","transactionsSection","cardsSection","accountsSection","reportsSection","goalsSection","notificationsSection","assistantSection","settingsSection","gscSection"]);
   const previousShowSection=showSection;
   showSection=function(id,button){
     if(allowed.has(id)) sessionStorage.setItem("nosso_dindin_active_section",id);
@@ -5765,7 +5786,7 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
  plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
  close:'<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>'
  };
- const items=[['dashboardSection',0,'home','Início'],['transactionsSection',1,'tx','Lançamentos'],['cardsSection',2,'card','Cartões'],['accountsSection',3,'bank','Contas'],['goalsSection',4,'goal','Metas'],['reportsSection',5,'report','Relatórios'],['notificationsSection',6,'bell','Avisos'],['assistantSection',7,'spark','Assistente'],['settingsSection',8,'gear','Configurações']];
+ const items=[['dashboardSection',0,'home','Início'],['transactionsSection',1,'tx','Lançamentos'],['cardsSection',2,'card','Cartões'],['accountsSection',3,'bank','Contas'],['goalsSection',4,'goal','Metas'],['reportsSection',5,'report','Relatórios'],['notificationsSection',6,'bell','Avisos'],['assistantSection',7,'spark','Assistente'],['gscSection',9,'card','Gasto sem Culpa'],['settingsSection',8,'gear','Configurações']];
  function nav(section,index){
    /* Ao trocar de tela pelo menu mobile, fecha o lançamento rápido.
       Assim o modal não fica sobreposto à próxima seção. */
@@ -7930,5 +7951,7 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 <script src="features.js"></script>
 <script src="finance-enhancements.js"></script>
 <script src="monthly-dashboard.js"></script>
+<script src="gasto-sem-culpa.js"></script>
+<script src="update-native.js" onerror="this.remove()"></script>
 </body>
 </html>
