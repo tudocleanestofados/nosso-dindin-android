@@ -1,0 +1,49 @@
+name: Publicar atualização do conteúdo do app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'updates/publish-web-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preparar conteúdo
+        run: |
+          npm ci
+          npm run build:receipt
+          npm run build:updates
+      - name: Empacotar e publicar versão
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="web-${GITHUB_RUN_NUMBER}"
+          (cd www && zip -qr ../dist.zip .)
+          sha="$(sha256sum dist.zip | cut -d' ' -f1)"
+          gh release create "$version" dist.zip --title "Nosso Dindin $version" --notes "Atualização do conteúdo do aplicativo."
+          python3 - "$version" "$sha" <<'PY'
+          import json, sys
+          from pathlib import Path
+          path = Path('updates/manifest.json')
+          data = json.loads(path.read_text())
+          data['web_version'] = sys.argv[1]
+          data['zip_url'] = f'https://github.com/{__import__("os").environ["GITHUB_REPOSITORY"]}/releases/download/{sys.argv[1]}/dist.zip'
+          data['sha256'] = sys.argv[2]
+          path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/manifest.json
+          git commit -m "Publicar atualização $version [skip ci]"
+          git push
