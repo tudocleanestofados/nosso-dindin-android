@@ -52,7 +52,7 @@
         <label>Valor definido para ${escapeHtml(selected.slice(0,7))}</label><input type="number" min="0" step="0.01" id="gscAmount${id}" value="${configured ? Number(configured.amount) : 0}">
         <label>Conta padrão para pagar despesas</label><select id="gscAccount${id}"><option value="">Escolha uma conta</option>${accounts.map(a=>`<option value="${a.id}" ${a.id===p?.account_id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}</select>
         <label>Notificação individual (horário de Recife)</label><input type="time" step="300" id="gscTime${id}" value="${String(p?.notification_time||'09:00').slice(0,5)}">
-        <label><input type="checkbox" id="gscNotify${id}" ${p?.notification_enabled===false?'':'checked'}> Receber lembrete diário</label>
+        <label class="nd-gsc-notify"><input type="checkbox" id="gscNotify${id}" ${p?.notification_enabled===false?'':'checked'}> <span>Receber lembrete diário</span></label>
         <button class="primary" onclick="ndGscSave(${i})">Salvar para ${escapeHtml(memberLabel(m))}</button>
         <details><summary>Meses anteriores</summary><ul>${historical.map(x=>`<li>${escapeHtml(x.month.slice(0,7))}: ${brl(x.amount)}</li>`).join('')||'<li>Nenhum mês definido.</li>'}</ul></details></div>`;
     }).join('') || '<p>Carregando membros da família…</p>';
@@ -128,7 +128,7 @@
       $('txForm')?.append(wrap);
     }
     if(!$('ndGscSummary')) {
-      const card=document.createElement('div');card.className='card';
+      const card=document.createElement('div');card.className='card';card.id='ndGscDashboardCard';
       card.innerHTML='<h3>Gasto sem Culpa</h3><div id="ndGscSummary"></div><button class="secondary" onclick="showSection(\'gscSection\')">Ver e configurar</button>';
       $('dashboardSection')?.append(card);
     }
