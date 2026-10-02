@@ -6,6 +6,11 @@ on:
     branches: [main]
     paths:
       - '.github/official-release-trigger'
+      - '.github/workflows/gerar-apk.yml'
+      - 'www/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.json'
 
 jobs:
   build:
@@ -39,7 +44,9 @@ jobs:
         run: npm ci
 
       - name: Preparar leitor de cupons
-        run: npm run build:receipt
+        run: |
+          npm run build:receipt
+          npm run build:updates
 
       - name: Criar projeto Android
         run: npx cap add android
