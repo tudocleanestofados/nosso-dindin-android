@@ -15,7 +15,15 @@
       - goalMovements.filter(m => m.account_id === id).reduce((sum,m) => sum + (m.type === 'deposit' ? 1 : -1) * Number(m.amount || 0),0);
   };
   const profile = user => settings.find(s => s.user_id === user);
-  const memberLabel = m => (m.email || 'Usuário').split('@')[0];
+  const memberLabel = m => {
+    const remote=String(m.display_name||'').trim();
+    if(remote)return remote;
+    const saved=localStorage.getItem('finance_profile_name_'+m.user_id)?.trim();
+    if(saved)return saved;
+    if(m.user_id===currentUser?.id && typeof userDisplayName==='function')return userDisplayName();
+    const local=String(m.email||'').split('@')[0].replace(/[._-]+/g,' ').trim();
+    return local ? local.replace(/\b\w/g,c=>c.toUpperCase()) : 'Usuário';
+  };
 
   async function load() {
     if (!active() || busy) return;
@@ -23,7 +31,7 @@
     try {
       const group = GROUP_ID;
       const [family, configs, limits, entries] = await Promise.all([
-        supabaseClient.rpc('get_my_family_members',{p_group_id:group}),
+        supabaseClient.rpc('get_my_family_profiles',{p_group_id:group}),
         supabaseClient.from('gsc_settings').select('*').eq('group_id',group),
         supabaseClient.from('gsc_months').select('*').eq('group_id',group).order('month',{ascending:false}),
         supabaseClient.from('gsc_expenses').select('*').eq('group_id',group)
@@ -86,6 +94,7 @@
   }
   window.ndGscTag=tag;
   window.ndGscRender=render;
+  window.ndGscRefresh=load;
   window.ndGscSave=async i => {
     const m=members[i], amount=Number($('gscAmount'+i).value), account=$('gscAccount'+i).value;
     if (!m || !Number.isFinite(amount) || amount<0 || !account) {alert('Informe um valor válido e uma conta padrão.');return;}
