@@ -464,3 +464,48 @@
     finally { busy = false; }
   });
 })();
+
+/* Change a recurring expense amount for one month or from this month onward. */
+(function () {
+  const el = id => document.getElementById(id);
+  let saving = false;
+  el('editTxAmount').insertAdjacentHTML('afterend', `<div id="ndRecurringEditScope" class="hidden"><label>Aplicar o valor a</label><select id="ndRecurringAmountScope"><option value="one">Somente este mês</option><option value="forward">Este mês e os próximos</option></select><small>“Este mês e os próximos” altera o valor das despesas pendentes e das novas que forem geradas. Despesas já pagas são preservadas.</small></div>`);
+  const oldOpen = window.openEditTransaction;
+  window.openEditTransaction = function (id) {
+    oldOpen(id);
+    const t = transactions.find(t => t.id === id);
+    const activeRoot = t?.recurrence_series_id && transactions.some(r => r.id === t.recurrence_series_id && r.fixed);
+    el('ndRecurringEditScope').classList.toggle('hidden', !(activeRoot && t.type === 'expense' && !t.paid));
+    el('ndRecurringAmountScope').value = 'one';
+  };
+  const oldSave = window.saveEditedTransaction;
+  window.saveEditedTransaction = async function () {
+    const id = el('editTxId').value;
+    const t = transactions.find(t => t.id === id);
+    if (!t?.recurrence_series_id) return oldSave();
+    if (saving) return;
+    const amount = Number(el('editTxAmount').value);
+    const description = el('editTxDescription').value.trim();
+    const type = el('editTxType').value;
+    const paid = el('editTxPaid').value === 'yes';
+    const fixed = type === 'expense' && el('editTxFixed').checked;
+    const scope = el('ndRecurringEditScope').classList.contains('hidden') ? 'one' : el('ndRecurringAmountScope').value;
+    if (!description || !Number.isFinite(amount) || amount <= 0) { alert('Preencha descrição e valor.'); return; }
+    if (scope === 'forward' && !fixed) { alert('Mantenha a opção Fixo / recorrente para alterar os próximos meses.'); return; }
+    if (scope === 'forward' && !confirm(`Aplicar ${money(amount)} a este mês e às próximas despesas pendentes? As já pagas serão preservadas.`)) return;
+    saving = true;
+    try {
+      const { error } = await supabaseClient.rpc('update_my_transaction_with_recurrence', {
+        p_transaction_id:id, p_group_id:GROUP_ID, p_type:type, p_description:description, p_amount:amount,
+        p_category:el('editTxCategory').value.trim() || null,
+        p_account_id:paid ? el('editTxAccount').value : null,
+        p_date:paid ? el('editTxDate').value : (el('editTxDueDate').value || today()),
+        p_due_date:paid ? null : (el('editTxDueDate').value || null),
+        p_paid:paid, p_fixed:fixed, p_scope:scope
+      });
+      if (error) throw error;
+      closeEditTransaction(); await loadCloudData(); renderAll();
+    } catch (error) { alert('Erro ao editar: ' + error.message); }
+    finally { saving = false; }
+  };
+})();
