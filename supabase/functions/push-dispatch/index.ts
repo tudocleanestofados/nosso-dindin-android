@@ -259,6 +259,15 @@ async function buildMessage(job: Job, targetUserId: string) {
   const status = await statusMessage(targetUserId, balance);
   const balanceLine = status ? `\n${status}` : `\n${balanceText}`;
 
+  if (job.event_type === "income_scheduled") {
+    const due = formatDueDate(job.metadata?.due_date);
+    return {
+      title: "Receita a receber",
+      body: `${actor} cadastrou ${amount} em ${job.description || "receita"}${due ? ` para receber em ${due}` : ""}.`,
+      data: { section: "transactionsSection", event_type: job.event_type },
+    };
+  }
+
   if (job.event_type === "expense_scheduled") {
     const due = formatDueDate(job.metadata?.due_date);
     return {

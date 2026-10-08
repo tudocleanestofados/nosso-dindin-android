@@ -341,3 +341,126 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+
+/* Monthly recurrence and complete management of remaining card installments. */
+(function () {
+  'use strict';
+  const el = id => document.getElementById(id);
+  const monthShift = (month, offset) => {
+    const [y, m] = month.slice(0, 7).split('-').map(Number);
+    const d = new Date(Date.UTC(y, m - 1 + offset, 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  };
+  const thisMonth = () => today().slice(0, 7);
+  let busy = false;
+  const fixedLabel = el('fixedLabel');
+  fixedLabel?.insertAdjacentHTML('afterend', '<small id="ndFixedHelp">Despesas fixas geram os próximos 12 meses automaticamente. Os próximos lançamentos ficam pendentes e o período é renovado todo mês.</small>');
+  const previousForm = window.updateSmartTransactionForm;
+  window.updateSmartTransactionForm = function () {
+    previousForm();
+    el('ndFixedHelp')?.classList.toggle('hidden', el('transactionType').value !== 'expense' || el('transactionInstallment').value === 'yes');
+  };
+
+  el('purchaseExistingFields').insertAdjacentHTML('beforeend', '<label>Mês de vencimento da próxima parcela</label><input id="ndPurchaseDueMonth" type="month"><small>Escolha o mês em que essa parcela vence no banco.</small>');
+  function setPurchaseDueMonth() {
+    el('ndPurchaseDueMonth').value = monthShift(thisMonth(), el('purchaseFirstInvoice').value === 'next' ? 1 : 0);
+  }
+  el('purchaseFirstInvoice').addEventListener('change', setPurchaseDueMonth);
+  const oldOpenPurchase = window.openPurchaseModal;
+  window.openPurchaseModal = function () { oldOpenPurchase(); setPurchaseDueMonth(); };
+  const oldSavePurchase = window.saveCardPurchase;
+  window.saveCardPurchase = async function () {
+    if (!el('purchaseExisting').checked) return oldSavePurchase();
+    if (busy) return;
+    const args = {
+      p_id: crypto.randomUUID(), p_group_id: GROUP_ID,
+      p_card_id: el('purchaseCard').value, p_description: el('purchaseDescription').value.trim(),
+      p_total_amount: Number(el('purchaseAmount').value), p_purchase_date: el('purchaseDate').value,
+      p_category: el('purchaseCategory').value || null, p_installments: Number(el('purchaseInstallments').value),
+      p_next_installment: Number(el('purchaseNextInstallment').value), p_first_due_month: el('ndPurchaseDueMonth').value + '-01'
+    };
+    if (!args.p_description || !args.p_card_id || !args.p_purchase_date || !el('ndPurchaseDueMonth').value || args.p_total_amount <= 0 || !Number.isInteger(args.p_installments) || args.p_installments < 1 || args.p_installments > 120 || !Number.isInteger(args.p_next_installment) || args.p_next_installment < 1 || args.p_next_installment > args.p_installments) { alert('Confira descrição, valor, parcelas e mês de vencimento.'); return; }
+    busy = true;
+    try {
+      const { error } = await supabaseClient.rpc('save_my_existing_card_purchase_at_month', args);
+      if (error) throw error;
+      closePurchaseModal(); await loadCloudData(); renderAll();
+    } catch (e) { alert('Erro ao salvar compra: ' + e.message); }
+    finally { busy = false; }
+  };
+
+  const modal = el('editCardPurchaseModal');
+  el('editCardPurchaseTotalInstallments').disabled = false;
+  el('editCardPurchaseTotalInstallments').min = 1;
+  el('editCardPurchaseTotalInstallments').max = 120;
+  modal.querySelector('h2').insertAdjacentHTML('afterend', `<label>Cartão</label><select id="ndEditPurchaseCard"></select>
+    <label>Parcela pendente a alterar</label><select id="ndEditPurchaseItem"></select>
+    <label>Aplicar a</label><select id="ndEditPurchaseScope"><option value="remaining">Esta parcela e as seguintes ainda pendentes</option><option value="one">Somente esta parcela</option></select>
+    <label>Mês de vencimento dessa parcela</label><input id="ndEditPurchaseDueMonth" type="month">
+    <label>Número dessa parcela</label><input id="ndEditPurchaseNext" type="number" min="1" max="120">`);
+  modal.querySelector('small').textContent = 'O mês informado é o vencimento no banco. As seguintes ficam nos meses seguintes. Parcelas pagas são preservadas.';
+  modal.querySelector('.primary').insertAdjacentHTML('afterend', '<button class="secondary" id="ndDeletePurchase" type="button">Excluir parcelas selecionadas</button>');
+  function pendingItems() { return cardInstallments.filter(i => i.purchase_id === el('editCardPurchaseId').value && !i.paid).sort((a,b) => a.installment_number-b.installment_number); }
+  function selectedItem() { return pendingItems().find(i => i.id === el('ndEditPurchaseItem').value); }
+  function fillSelected() {
+    const item = selectedItem(); if (!item) return;
+    el('ndEditPurchaseNext').value = item.installment_number;
+    el('ndEditPurchaseDueMonth').value = monthShift(item.invoice_month, 1);
+    el('editCardPurchaseInstallmentAmount').value = Number(item.amount).toFixed(2);
+  }
+  function scopeChanged() {
+    const one = el('ndEditPurchaseScope').value === 'one';
+    el('ndEditPurchaseNext').disabled = one;
+    el('editCardPurchaseTotalInstallments').disabled = one;
+    el('ndEditPurchaseCard').disabled = one;
+    if (one) {
+      const p = cardPurchases.find(p => p.id === el('editCardPurchaseId').value);
+      el('ndEditPurchaseCard').value = p.card_id;
+      el('editCardPurchaseTotalInstallments').value = p.installments;
+      el('ndEditPurchaseNext').value = selectedItem()?.installment_number || 1;
+    }
+  }
+  el('ndEditPurchaseItem').addEventListener('change', fillSelected);
+  el('ndEditPurchaseScope').addEventListener('change', scopeChanged);
+  const oldEdit = window.openEditCardPurchase;
+  window.openEditCardPurchase = function (id) {
+    const items = cardInstallments.filter(i => i.purchase_id === id && !i.paid).sort((a,b) => a.installment_number-b.installment_number);
+    if (!items.length) { alert('Essa compra não tem parcelas pendentes. As parcelas pagas são preservadas.'); return; }
+    oldEdit(id);
+    el('ndEditPurchaseCard').replaceChildren(...creditCards.map(c => new Option(c.name,c.id)));
+    el('ndEditPurchaseCard').value = cardPurchases.find(p => p.id === id).card_id;
+    el('ndEditPurchaseItem').replaceChildren(...items.map(i => new Option(`Parcela ${i.installment_number} — vence em ${monthShift(i.invoice_month,1).split('-').reverse().join('/')}`,i.id)));
+    el('ndEditPurchaseScope').value = 'remaining';
+    fillSelected(); scopeChanged();
+  };
+  window.saveEditedCardPurchase = async function () {
+    if (busy) return;
+    const args = {
+      p_group_id: GROUP_ID, p_purchase_id: el('editCardPurchaseId').value,
+      p_installment_id: el('ndEditPurchaseItem').value, p_scope: el('ndEditPurchaseScope').value,
+      p_card_id: el('ndEditPurchaseCard').value, p_description: el('editCardPurchaseDescription').value.trim(),
+      p_category: el('editCardPurchaseCategory').value || null, p_purchase_date: el('editCardPurchaseDate').value,
+      p_amount: Number(el('editCardPurchaseInstallmentAmount').value), p_next_number: Number(el('ndEditPurchaseNext').value),
+      p_total: Number(el('editCardPurchaseTotalInstallments').value), p_due_month: el('ndEditPurchaseDueMonth').value + '-01'
+    };
+    if (!args.p_description || !args.p_purchase_date || !el('ndEditPurchaseDueMonth').value || args.p_amount <= 0 || !Number.isInteger(args.p_next_number) || !Number.isInteger(args.p_total) || args.p_next_number < 1 || args.p_next_number > args.p_total || args.p_total > 120) { alert('Confira valor, numeração e vencimento.'); return; }
+    busy = true;
+    try {
+      const { error } = await supabaseClient.rpc('edit_my_card_installments',args); if (error) throw error;
+      closeEditCardPurchase(); await loadCloudData(); renderAll();
+    } catch (e) { alert('Erro ao editar: ' + e.message); }
+    finally { busy = false; }
+  };
+  el('ndDeletePurchase').addEventListener('click', async () => {
+    if (busy) return;
+    const item = selectedItem(); if (!item) return;
+    const scope = el('ndEditPurchaseScope').value;
+    if (!confirm(scope === 'one' ? `Excluir somente a parcela ${item.installment_number}?` : `Excluir a parcela ${item.installment_number} e as seguintes pendentes? As parcelas pagas serão mantidas.`)) return;
+    busy = true;
+    try {
+      const { error } = await supabaseClient.rpc('delete_my_card_installments',{p_group_id:GROUP_ID,p_purchase_id:el('editCardPurchaseId').value,p_installment_id:item.id,p_scope:scope}); if (error) throw error;
+      closeEditCardPurchase(); await loadCloudData(); renderAll();
+    } catch (e) { alert('Erro ao excluir: ' + e.message); }
+    finally { busy = false; }
+  });
+})();
