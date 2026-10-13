@@ -109,6 +109,7 @@
   const previousTransactions = window.renderTransactions;
   window.renderTransactions = function () {
     if (typeof previousTransactions === 'function') previousTransactions.apply(this, arguments);
+    if (window.ND_LEDGER_FILTERS_ACTIVE) return;
     if (typeof transactionViewFilter === 'undefined' || !['receivable', 'payable'].includes(transactionViewFilter)) return;
     const wanted = (transactions || []).filter(item => !item.paid
       && item.type === (transactionViewFilter === 'receivable' ? 'income' : 'expense')
