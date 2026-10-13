@@ -358,6 +358,7 @@ async function sendFcm(accessToken: string, projectId: string, token: string, ms
           priority: "high",
           notification: {
             channel_id: CHANNEL_ID,
+            tag: job.id,
             sound: "default",
             default_vibrate_timings: true,
           },
@@ -419,15 +420,11 @@ async function enqueueDueJobs() {
 }
 
 async function processQueue() {
-  const auth = await getAccessToken();
-  const { data: jobs, error } = await supabase
-    .from("push_jobs")
-    .select("*")
-    .is("sent_at", null)
-    .lt("attempts", 10)
-    .order("created_at", { ascending: true })
-    .limit(50);
+  const worker = crypto.randomUUID();
+  const { data: jobs, error } = await supabase.rpc("claim_push_jobs", { p_worker: worker, p_limit: 5 });
   if (error) throw error;
+  if (!jobs?.length) return 0;
+  const auth = await getAccessToken();
 
   let processed = 0;
   for (const job of (jobs || []) as Job[]) {
@@ -441,19 +438,22 @@ async function processQueue() {
     if (devErr) throw devErr;
 
     if (!devices?.length) {
-      await supabase.from("push_jobs").update({
+      const { error: finishError } = await supabase.from("push_jobs").update({
         sent_at: new Date().toISOString(),
         last_error: "Nenhum dispositivo registrado",
-      }).eq("id", job.id);
+        claim_token: null, claimed_until: null,
+      }).eq("id", job.id).eq("claim_token", worker);
+      if (finishError) throw finishError;
       processed++;
       continue;
     }
 
-    const { data: delivered } = await supabase
+    const { data: delivered, error: deliveryError } = await supabase
       .from("push_delivery_log")
       .select("device_id,status")
       .eq("job_id", job.id)
       .eq("status", "sent");
+    if (deliveryError) throw deliveryError;
     const done = new Set((delivered || []).map((x: any) => x.device_id));
     let failures: string[] = [];
 
@@ -462,13 +462,14 @@ async function processQueue() {
       const msg = await buildMessage(job, device.user_id);
       const result = await sendFcm(auth.token, auth.projectId, device.token, msg, job);
 
-      await supabase.from("push_delivery_log").upsert({
+      const { error: logError } = await supabase.from("push_delivery_log").upsert({
         job_id: job.id,
         device_id: device.id,
         status: result.ok ? "sent" : "error",
         sent_at: result.ok ? new Date().toISOString() : null,
         error: result.ok ? null : `${result.status}: ${result.body}`.slice(0, 1500),
       }, { onConflict: "job_id,device_id" });
+      if (logError) throw logError;
 
       if (!result.ok) {
         failures.push(`${device.id}: ${result.status}`);
@@ -479,16 +480,20 @@ async function processQueue() {
     }
 
     if (!failures.length) {
-      await supabase.from("push_jobs").update({
+      const { error: finishError } = await supabase.from("push_jobs").update({
         sent_at: new Date().toISOString(),
         last_error: null,
-      }).eq("id", job.id);
+        claim_token: null, claimed_until: null,
+      }).eq("id", job.id).eq("claim_token", worker);
+      if (finishError) throw finishError;
       processed++;
     } else {
-      await supabase.from("push_jobs").update({
+      const { error: finishError } = await supabase.from("push_jobs").update({
         attempts: Number(job.attempts || 0) + 1,
         last_error: failures.join("; "),
-      }).eq("id", job.id);
+        claim_token: null, claimed_until: null,
+      }).eq("id", job.id).eq("claim_token", worker);
+      if (finishError) throw finishError;
     }
   }
   return processed;

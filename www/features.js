@@ -12,6 +12,59 @@
   let ledgerTab = 'expenses';
   let receiptReturnToTransaction = false;
 
+  // Ledger filter helpers: dates are ISO calendar dates, not local timestamps.
+  let ledgerFilter = 'month';
+  let ledgerMonth = today().slice(0, 7);
+  let periodFrom = ledgerMonth + '-01';
+  let periodTo = monthEnd(ledgerMonth);
+  function monthEnd(month) {
+    const [year, number] = month.split('-').map(Number);
+    return `${month}-${String(new Date(Date.UTC(year, number, 0)).getUTCDate()).padStart(2, '0')}`;
+  }
+  function plusDays(date, days) {
+    const d = new Date(date + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+  function effectiveDate(item) { return String((item.paid ? item.date : (item.due_date || item.date)) || '').slice(0, 10); }
+  function matchesLedger(item, filter, month, from, to, currentDay) {
+    const date = effectiveDate(item);
+    if (filter === 'overdue') return !item.paid && !!date && date < currentDay;
+    if (filter === 'week') return !item.paid && !!date && date >= currentDay && date <= plusDays(currentDay, 6);
+    if (filter === 'paid') return !!item.paid && date.slice(0,7) === month;
+    if (filter === 'period') return !!from && !!to && from <= to && !!date && date >= from && date <= to;
+    if (filter === 'all') return true;
+    return !!date && date.slice(0,7) === month;
+  }
+  function ledgerOrder(a,b) {
+    if (!!a.paid !== !!b.paid) return a.paid ? 1 : -1;
+    const comparison = effectiveDate(a).localeCompare(effectiveDate(b));
+    return (a.paid ? -comparison : comparison) || String(a.id || '').localeCompare(String(b.id || ''));
+  }
+  function selectedByLedger(item) { return matchesLedger(item, ledgerFilter, ledgerMonth, periodFrom, periodTo, today()); }
+  window.ND_LEDGER_HELPERS = { matchesLedger, ledgerOrder, effectiveDate, plusDays, monthEnd };
+  function updateLedgerControls() {
+    if (!el('ndLedgerFilter')) return;
+    el('ndLedgerFilter').value = ledgerFilter;
+    el('ndLedgerMonth').value = ledgerMonth;
+    el('ndLedgerFrom').value = periodFrom;
+    el('ndLedgerTo').value = periodTo;
+    el('ndLedgerMonthWrap').classList.toggle('hidden', !['month','paid'].includes(ledgerFilter));
+    el('ndLedgerPeriod').classList.toggle('hidden', ledgerFilter !== 'period');
+    const status = el('ndLedgerFilterHint');
+    status.textContent = ledgerFilter === 'week' ? 'Hoje e os próximos 6 dias. Somente pendentes.'
+      : ledgerFilter === 'overdue' ? 'Somente pendentes com vencimento anterior a hoje.'
+      : ledgerFilter === 'period' && periodFrom > periodTo ? 'A data inicial deve ser anterior à data final.'
+      : ledgerFilter === 'paid' ? 'Pagas ou recebidas no mês selecionado.' : '';
+  }
+  window.changeLedgerFilter = function () {
+    ledgerFilter = el('ndLedgerFilter').value;
+    ledgerMonth = el('ndLedgerMonth').value || today().slice(0,7);
+    periodFrom = el('ndLedgerFrom').value; periodTo = el('ndLedgerTo').value;
+    transactionViewFilter = null;
+    renderTransactions();
+  };
+  // End ledger filter helpers.
+
   function renderInvoiceLedger() {
     const list = el('allTransactions');
     const cardsById = new Map(creditCards.map(card => [card.id, card]));
@@ -24,8 +77,17 @@
       if (!groups.has(key)) groups.set(key, { cardId: item.card_id, month, items: [] });
       groups.get(key).items.push(item);
     });
-    const invoices = [...groups.values()].sort((a, b) =>
+    const invoices = [...groups.values()].map(invoice => {
+      const card = cardsById.get(invoice.cardId);
+      const dueMonth = plusDays(invoice.month + '-01', 32).slice(0,7);
+      const due = `${dueMonth}-${String(Math.min(Number(card?.due_day || 1), Number(monthEnd(dueMonth).slice(-2)))).padStart(2,'0')}`;
+      const paid = invoice.items.every(item => item.paid);
+      const payment = (invoicePayments || []).find(p => p.card_id === invoice.cardId && String(p.invoice_month).slice(0,7) === invoice.month);
+      return {...invoice, date: paid ? String(payment?.paid_at || due).slice(0,10) : due, due_date: due, paid, id: `${invoice.cardId}:${invoice.month}`};
+    }).filter(selectedByLedger).sort((a, b) => ledgerOrder(a,b) ||
       a.month.localeCompare(b.month) || String(cardsById.get(a.cardId)?.name || '').localeCompare(String(cardsById.get(b.cardId)?.name || '')));
+    window.ND_LEDGER_VISIBLE_INVOICES = invoices;
+    if (el('ndLedgerCount')) el('ndLedgerCount').textContent = `${invoices.length} fatura${invoices.length === 1 ? '' : 's'}`;
     list.innerHTML = invoices.length ? invoices.map(invoice => {
       const card = cardsById.get(invoice.cardId);
       const [year, month] = invoice.month.split('-').map(Number);
@@ -40,7 +102,7 @@
         return `<div class="nd-ledger-invoice-item"><span>${escapeHtml(purchase?.description || 'Compra no cartão')}${count > 1 ? ` (${number}/${count})` : ''}</span><strong>${money(Number(item.amount || 0))}</strong></div>`;
       }).join('');
       return `<div class="nd-ledger-invoice"><div class="nd-ledger-invoice-head"><div><strong>${escapeHtml(card?.name || 'Cartão')}</strong><small>Fatura com vencimento em ${due}</small></div><strong>${money(total)}</strong></div><small>${paid ? 'Paga' : 'Pendente'}</small>${details}</div>`;
-    }).join('') : '<div class="empty">Nenhuma fatura ou compra no cartão cadastrada.</div>';
+    }).join('') : '<div class="empty">Nenhuma fatura no filtro selecionado.</div>';
   }
 
   window.renderTransactions = function () {
@@ -52,13 +114,13 @@
       button.classList.toggle('active', selected);
       button.setAttribute('aria-pressed', String(selected));
     });
+    updateLedgerControls();
     if (ledgerTab === 'cards') { renderInvoiceLedger(); return; }
-    if (transactionViewFilter) return; // O atalho do início preserva a lista de pendentes.
     const type = ledgerTab === 'income' ? 'income' : 'expense';
-    const selected = transactions.filter(item => item.type === type)
-      .sort((a, b) => String(b.date || b.due_date || '').localeCompare(String(a.date || a.due_date || '')));
+    const selected = transactions.filter(item => item.type === type && (!transactionViewFilter || !item.paid) && selectedByLedger(item)).sort(ledgerOrder);
+    if (el('ndLedgerCount')) el('ndLedgerCount').textContent = `${selected.length} lançamento${selected.length === 1 ? '' : 's'}`;
     el('allTransactions').innerHTML = selected.length ? selected.map(renderTransaction).join('')
-      : `<div class="empty">Nenhuma ${type === 'income' ? 'receita' : 'despesa'} cadastrada.</div>`;
+      : `<div class="empty">Nenhuma ${type === 'income' ? 'receita' : 'despesa'} no filtro selecionado.</div>`;
   };
 
   window.setLedgerTab = function (tab) {
@@ -302,6 +364,29 @@
     tabs.setAttribute('aria-label', 'Tipo de lançamento');
     tabs.innerHTML = `<button type="button" data-ledger-tab="income" onclick="setLedgerTab('income')">Receitas</button><button type="button" data-ledger-tab="expenses" onclick="setLedgerTab('expenses')">Despesas</button><button type="button" data-ledger-tab="cards" onclick="setLedgerTab('cards')">Cartões / Faturas</button>`;
     el('transactionsSection').querySelector('.card:first-child').append(tabs);
+    tabs.insertAdjacentHTML('afterend', `<div id="ndLedgerFilters"><div><label for="ndLedgerFilter">Mostrar</label><select id="ndLedgerFilter" onchange="changeLedgerFilter()"><option value="month">Lançamentos do mês</option><option value="overdue">Vencidas</option><option value="week">Próximos 7 dias</option><option value="paid">Pagas / Recebidas</option><option value="period">Selecionar período</option><option value="all">Todos os lançamentos</option></select></div><div id="ndLedgerMonthWrap"><label for="ndLedgerMonth">Mês</label><input id="ndLedgerMonth" type="month" onchange="changeLedgerFilter()"></div><div id="ndLedgerPeriod" class="hidden"><div><label for="ndLedgerFrom">De</label><input id="ndLedgerFrom" type="date" onchange="changeLedgerFilter()"></div><div><label for="ndLedgerTo">Até</label><input id="ndLedgerTo" type="date" onchange="changeLedgerFilter()"></div></div><small id="ndLedgerFilterHint"></small><small id="ndLedgerCount" aria-live="polite"></small></div>`);
+    const filterStyle = document.createElement('style');
+    filterStyle.textContent = `#ndLedgerFilters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:16px}#ndLedgerFilters label{display:block;margin:0 0 5px;color:inherit}#ndLedgerFilters input,#ndLedgerFilters select{width:100%;min-width:0;margin:0}#ndLedgerPeriod{display:grid;grid-template-columns:1fr 1fr;gap:12px;grid-column:1/-1}#ndLedgerFilterHint,#ndLedgerCount{grid-column:1/-1;color:var(--muted,#b5c4d3)}#ndLedgerFilterHint:empty{display:none}#ndLedgerFilters .hidden{display:none!important}#ndLedgerTabs button.active{background:#1d73d8!important;border-color:#1d73d8!important;color:#fff!important}#ndLedgerTabs button:not(.active){background:transparent!important;color:inherit!important}@media(max-width:380px){#ndLedgerFilters{grid-template-columns:1fr}}`;
+    document.head.append(filterStyle);
+    window.ND_LEDGER_FILTERS_ACTIVE = true;
+    updateLedgerControls();
+    let dashboardEntry = false;
+    const oldDashboardFilter = window.openDashboardFilter;
+    window.openDashboardFilter = function () {
+      dashboardEntry = true;
+      try { return oldDashboardFilter.apply(this,arguments); }
+      finally { dashboardEntry = false; }
+    };
+    const oldShow = window.showSection;
+    window.showSection = function(id) {
+      if (id === 'transactionsSection' && el(id).classList.contains('hidden')) {
+        if (!dashboardEntry) transactionViewFilter = null;
+        ledgerFilter = 'month'; ledgerMonth = dashboardEntry ? (window.ND_SELECTED_MONTH || today().slice(0,7)) : today().slice(0,7);
+        updateLedgerControls();
+      }
+      return oldShow.apply(this,arguments);
+    };
+
     const installment = document.createElement('div');
     installment.innerHTML = `<div id="ndPaymentModeWrap" class="form-block hidden"><label>Onde foi feito o parcelamento?</label><select id="ndPaymentMode" onchange="updateSmartTransactionForm()"><option value="">Selecione...</option><option value="card">No cartão</option><option value="no_card">Sem cartão (acordo ou despesa)</option></select></div>
       <div id="ndNonCardFields" class="form-block hidden"><label>Categoria</label><select id="ndInstallmentCategory"></select>

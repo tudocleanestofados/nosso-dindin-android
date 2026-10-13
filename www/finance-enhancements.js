@@ -259,7 +259,7 @@
     });
     const invoices = [...groups.values()].sort((a, b) => a.month.localeCompare(b.month)
       || String(cardName.get(a.cardId) || '').localeCompare(String(cardName.get(b.cardId) || '')));
-    addComparisonButtons(el('allTransactions'), invoices);
+    addComparisonButtons(el('allTransactions'), window.ND_LEDGER_VISIBLE_INVOICES || invoices);
   };
 
   function init() {
