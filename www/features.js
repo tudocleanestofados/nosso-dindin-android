@@ -65,8 +65,62 @@
   };
   // End ledger filter helpers.
 
+  // Daily statement helpers. Closing balances always use the complete ledger.
+  function dailyStatement(selected, allTransactions, accountRows, goalRows) {
+    const amountCents = value => Math.round(Number(value || 0) * 100);
+    const ids = new Set(accountRows.map(account => account.id));
+    const base = accountRows.reduce((sum, account) => sum + amountCents(account.initial_balance), 0);
+    const events = [];
+    allTransactions.forEach(item => {
+      if (!item.paid || !ids.has(item.account_id)) return;
+      const day = String(item.date || '').slice(0,10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+      events.push({day, delta: (item.type === 'income' ? 1 : -1) * amountCents(item.amount)});
+    });
+    goalRows.forEach(item => {
+      if (!ids.has(item.account_id)) return; // Moving inside the Cofrinho doesn't change available funds.
+      const day = String(item.date || item.created_at || '').slice(0,10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+      events.push({day, delta: (item.type === 'deposit' ? -1 : 1) * amountCents(item.amount)});
+    });
+    events.sort((a,b) => a.day.localeCompare(b.day));
+    const groups = new Map();
+    selected.forEach(item => {
+      const day = effectiveDate(item);
+      if (!groups.has(day)) groups.set(day, {day, items: [], paidCents: 0, pendingCents: 0, balanceCents: null});
+      const group = groups.get(day);
+      group.items.push(item);
+      if (item.paid) group.paidCents += amountCents(item.amount);
+      else group.pendingCents += amountCents(item.amount);
+    });
+    let balance = base, cursor = 0;
+    [...groups.values()].filter(group => /^\d{4}-\d{2}-\d{2}$/.test(group.day)).sort((a,b) => a.day.localeCompare(b.day)).forEach(group => {
+      while (cursor < events.length && events[cursor].day <= group.day) balance += events[cursor++].delta;
+      group.balanceCents = balance;
+    });
+    // Preserve the filter's existing order: pending due dates first, paid dates newest first.
+    return [...groups.values()];
+  }
+  function renderDailyStatement(selected, type) {
+    const groups = dailyStatement(selected, transactions, accounts, typeof goalMovements !== 'undefined' ? goalMovements : []);
+    const note = '<p class="nd-statement-note">Saldo disponível ao final do dia em todas as contas, considerando receitas recebidas e despesas pagas, sem o valor reservado no Cofrinho. Pendentes não alteram o saldo.</p>';
+    return note + groups.map(group => {
+      const validDay = /^\d{4}-\d{2}-\d{2}$/.test(group.day);
+      const heading = validDay ? new Intl.DateTimeFormat('pt-BR', {weekday:'long',day:'2-digit',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(group.day+'T12:00:00Z')) : 'Sem data';
+      const isFuture = validDay && group.day > today();
+      const hasPaid = group.items.some(item => item.paid);
+      const paidTotal = hasPaid ? `<div><span>${type === 'income' ? 'Entradas recebidas' : 'Saídas pagas'}</span><strong class="${type === 'income' ? 'income' : 'expense'}">${type === 'income' ? '+' : '−'} ${moneyBR(group.paidCents)}</strong></div>` : '';
+      const pendingTotal = group.items.some(item => !item.paid) ? `<div class="nd-day-pending"><span>${type === 'income' ? 'A receber' : 'A pagar'} · previsto</span><strong>${moneyBR(group.pendingCents)}</strong></div>` : '';
+      const closing = group.balanceCents !== null && (!isFuture || hasPaid) ? `<div class="nd-day-closing"><span>${isFuture ? 'Saldo registrado para a data' : 'Saldo do dia'}</span><strong class="sensitive-money ${group.balanceCents < 0 ? 'expense' : 'nd-day-balance'}">${moneyBR(group.balanceCents)}</strong></div>` : '';
+      return `<section class="nd-statement-day"><header class="nd-day-header"><h3>${escapeHtml(heading)}</h3><small>${group.items.length} ${group.items.length === 1 ? 'lançamento' : 'lançamentos'}</small></header><div class="nd-day-items">${group.items.map(renderTransaction).join('')}</div><footer class="nd-day-footer">${paidTotal}${pendingTotal}${closing}</footer></section>`;
+    }).join('');
+  }
+  window.ND_DAILY_STATEMENT = {dailyStatement, renderDailyStatement};
+  // End daily statement helpers.
+
   function renderInvoiceLedger() {
     const list = el('allTransactions');
+    list.classList?.remove('nd-statement-list');
     const cardsById = new Map(creditCards.map(card => [card.id, card]));
     const purchasesById = new Map(cardPurchases.map(purchase => [purchase.id, purchase]));
     const groups = new Map();
@@ -119,7 +173,8 @@
     const type = ledgerTab === 'income' ? 'income' : 'expense';
     const selected = transactions.filter(item => item.type === type && (!transactionViewFilter || !item.paid) && selectedByLedger(item)).sort(ledgerOrder);
     if (el('ndLedgerCount')) el('ndLedgerCount').textContent = `${selected.length} lançamento${selected.length === 1 ? '' : 's'}`;
-    el('allTransactions').innerHTML = selected.length ? selected.map(renderTransaction).join('')
+    el('allTransactions').classList.toggle('nd-statement-list', selected.length > 0);
+    el('allTransactions').innerHTML = selected.length ? renderDailyStatement(selected, type)
       : `<div class="empty">Nenhuma ${type === 'income' ? 'receita' : 'despesa'} no filtro selecionado.</div>`;
   };
 
@@ -368,6 +423,10 @@
     const filterStyle = document.createElement('style');
     filterStyle.textContent = `#ndLedgerFilters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:16px}#ndLedgerFilters label{display:block;margin:0 0 5px;color:inherit}#ndLedgerFilters input,#ndLedgerFilters select{width:100%;min-width:0;margin:0}#ndLedgerPeriod{display:grid;grid-template-columns:1fr 1fr;gap:12px;grid-column:1/-1}#ndLedgerFilterHint,#ndLedgerCount{grid-column:1/-1;color:var(--muted,#b5c4d3)}#ndLedgerFilterHint:empty{display:none}#ndLedgerFilters .hidden{display:none!important}#ndLedgerTabs button.active{background:#1d73d8!important;border-color:#1d73d8!important;color:#fff!important}#ndLedgerTabs button:not(.active){background:transparent!important;color:inherit!important}@media(max-width:380px){#ndLedgerFilters{grid-template-columns:1fr}}`;
     document.head.append(filterStyle);
+    const dailyStyle = document.createElement('style');
+    dailyStyle.textContent = `#allTransactions.nd-statement-list{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}html[data-theme="dark"] .nd-statement-day .transaction-desc{color:#f0f6fc!important}html[data-theme="dark"] .nd-statement-day .transaction-info{color:#c4d5e5!important}html[data-theme="dark"] .nd-statement-day .transaction{border-color:#446077}.nd-statement-note{margin:0 0 18px;padding:12px 14px;border-radius:10px;background:#eaf2fc;color:#38566f;font-size:12px;line-height:1.5}.nd-statement-day{margin:0 0 22px;border:1px solid #d3dfeb;border-radius:14px;overflow:hidden;background:#fff;color:#17324a}.nd-day-header{padding:15px 18px;background:#edf4fc;border-bottom:1px solid #d3dfeb;display:flex;align-items:center;justify-content:space-between;gap:12px}.nd-day-header h3{font-size:15px;margin:0!important;color:#15334f!important;text-transform:capitalize;line-height:1.4}.nd-day-header small{font-size:11px;color:#526a80;white-space:nowrap}.nd-day-items{padding:0 18px}.nd-day-items .transaction:last-child{border-bottom:0}.nd-day-footer{padding:14px 18px;border-top:1px solid #d3dfeb;background:#f5f8fc;display:grid;gap:10px}.nd-day-footer>div{display:flex;justify-content:space-between;align-items:baseline;gap:14px}.nd-day-footer span{font-size:13px;line-height:1.4}.nd-day-footer strong{white-space:nowrap;font-size:15px}.nd-day-closing{padding-top:10px;border-top:1px solid #d3dfeb;font-weight:700}.nd-day-closing:first-child{border-top:0;padding-top:0}.nd-day-pending{color:#635a33}.nd-day-balance{color:#15497b}.dark .nd-statement-note,html[data-theme="dark"] .nd-statement-note{background:#183449;color:#d4e2ef}.dark .nd-statement-day,html[data-theme="dark"] .nd-statement-day{background:#13283b;color:#e5edf5;border-color:#446077}.dark .nd-day-header,html[data-theme="dark"] .nd-day-header{background:#193248;border-color:#446077}.dark .nd-day-header h3,html[data-theme="dark"] .nd-day-header h3{color:#f0f6fc!important}.dark .nd-day-header small,html[data-theme="dark"] .nd-day-header small{color:#c4d5e5}.dark .nd-day-footer,html[data-theme="dark"] .nd-day-footer{background:#102335;border-color:#446077}.dark .nd-day-closing,html[data-theme="dark"] .nd-day-closing{border-color:#446077}.dark .nd-day-pending,html[data-theme="dark"] .nd-day-pending{color:#ecd8a3}.dark .nd-day-balance,html[data-theme="dark"] .nd-day-balance{color:#8ec5ff}@media(max-width:520px){.nd-day-header{align-items:flex-start;flex-direction:column;gap:3px;padding:13px 14px}.nd-day-items{padding:0 14px}.nd-day-footer{padding:13px 14px}.nd-day-header h3{font-size:14px}.nd-day-footer strong{font-size:16px}}`;
+    document.head.append(dailyStyle);
+
     window.ND_LEDGER_FILTERS_ACTIVE = true;
     updateLedgerControls();
     let dashboardEntry = false;
