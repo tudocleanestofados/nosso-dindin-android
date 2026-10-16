@@ -25,4 +25,10 @@ const cents=dailyStatement([{type:'expense',paid:true,date:'2026-10-01',account_
 let html=renderDailyStatement(tx.filter(t=>t.id.startsWith('out')),'expense');assert.equal((html.match(/nd-statement-day/g)||[]).length,1);assert.ok(html.includes('Saldo do dia'));assert.ok(html.includes('30.79'));assert.equal((html.match(/>Editar</g)||[]).length,3);assert.ok(html.includes('sensitive-money'));
 html=renderDailyStatement([tx.find(t=>t.id==='pending')],'expense');assert.ok(html.includes('previsto'));assert.ok(!html.includes('nd-day-closing'));
 const empty=dailyStatement([{type:'expense',paid:false,amount:10}],[],[],[]);assert.equal(empty[0].balanceCents,null);
+const backwards=dailyStatement([tx.at(-1),tx[1],tx[0]],tx,accountRows,goals);assert.deepEqual(Array.from(backwards,g=>g.day),['2026-10-14','2026-10-15','2026-10-25']);
+const renderSelection=ctx.window.ND_DAILY_STATEMENT.renderLedgerSelection;
+for(const filter of ['month','overdue','week','period','all'])assert.ok(!renderSelection([tx[0]],'expense',filter).includes('nd-statement-day'));
+assert.ok(renderSelection([tx[0]],'expense','paid').includes('nd-statement-day'));
+assert.ok(source.includes('#transactionsSection #allTransactions.nd-statement-list{background:transparent!important'));
+assert.ok(source.includes('#transactionsSection #allTransactions{background:var(--surface2,#f0f5fb)!important'));
 console.log('PASS: grouping, full historical closing balance across both tabs/accounts, transfer neutrality, Cofrinho, pending/future handling, cent precision, preserved actions and privacy');
