@@ -29,6 +29,8 @@ const backwards=dailyStatement([tx.at(-1),tx[1],tx[0]],tx,accountRows,goals);ass
 const renderSelection=ctx.window.ND_DAILY_STATEMENT.renderLedgerSelection;
 for(const filter of ['month','overdue','week','period','all'])assert.ok(!renderSelection([tx[0]],'expense',filter).includes('nd-statement-day'));
 assert.ok(renderSelection([tx[0]],'expense','paid').includes('nd-statement-day'));
-assert.ok(source.includes('#transactionsSection #allTransactions.nd-statement-list{background:transparent!important'));
-assert.ok(source.includes('#transactionsSection #allTransactions{background:var(--surface2,#f0f5fb)!important'));
+assert.ok(source.includes("closest('.card')?.classList.toggle('nd-ledger-statement-panel', statementVisible)"));
+assert.ok(source.includes('#transactionsSection .card.nd-ledger-statement-panel'));
+assert.ok(source.includes('background:#0d2435!important'));
+assert.ok(source.includes('border-bottom:2px solid #5b7d98!important'));
 console.log('PASS: grouping, full historical closing balance across both tabs/accounts, transfer neutrality, Cofrinho, pending/future handling, cent precision, preserved actions and privacy');
