@@ -123,6 +123,7 @@
   function renderInvoiceLedger() {
     const list = el('allTransactions');
     list.classList?.remove('nd-statement-list');
+    list.closest?.('.card')?.classList.remove('nd-ledger-statement-panel');
     const cardsById = new Map(creditCards.map(card => [card.id, card]));
     const purchasesById = new Map(cardPurchases.map(purchase => [purchase.id, purchase]));
     const groups = new Map();
@@ -175,7 +176,9 @@
     const type = ledgerTab === 'income' ? 'income' : 'expense';
     const selected = transactions.filter(item => item.type === type && (!transactionViewFilter || !item.paid) && selectedByLedger(item)).sort(ledgerOrder);
     if (el('ndLedgerCount')) el('ndLedgerCount').textContent = `${selected.length} lançamento${selected.length === 1 ? '' : 's'}`;
-    el('allTransactions').classList.toggle('nd-statement-list', ledgerFilter === 'paid' && selected.length > 0);
+    const statementVisible = ledgerFilter === 'paid' && selected.length > 0;
+    el('allTransactions').classList.toggle('nd-statement-list', statementVisible);
+    el('allTransactions').closest('.card')?.classList.toggle('nd-ledger-statement-panel', statementVisible);
     el('allTransactions').innerHTML = selected.length ? renderLedgerSelection(selected, type, ledgerFilter)
       : `<div class="empty">Nenhuma ${type === 'income' ? 'receita' : 'despesa'} no filtro selecionado.</div>`;
   };
@@ -425,8 +428,39 @@
     const filterStyle = document.createElement('style');
     filterStyle.textContent = `#ndLedgerFilters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:16px}#ndLedgerFilters label{display:block;margin:0 0 5px;color:inherit}#ndLedgerFilters input,#ndLedgerFilters select{width:100%;min-width:0;margin:0}#ndLedgerPeriod{display:grid;grid-template-columns:1fr 1fr;gap:12px;grid-column:1/-1}#ndLedgerFilterHint,#ndLedgerCount{grid-column:1/-1;color:var(--muted,#b5c4d3)}#ndLedgerFilterHint:empty{display:none}#ndLedgerFilters .hidden{display:none!important}#ndLedgerTabs button.active{background:#1d73d8!important;border-color:#1d73d8!important;color:#fff!important}#ndLedgerTabs button:not(.active){background:transparent!important;color:inherit!important}@media(max-width:380px){#ndLedgerFilters{grid-template-columns:1fr}}`;
     document.head.append(filterStyle);
+    el('allTransactions').closest('.card')?.classList.add('nd-ledger-panel');
     const dailyStyle = document.createElement('style');
-    dailyStyle.textContent = `#transactionsSection #allTransactions{background:var(--surface2,#f0f5fb)!important;color:var(--ink,#17324a)!important;border-color:var(--line,#d3dfeb)!important}#transactionsSection #allTransactions .transaction{background:transparent!important;border-color:var(--line,#d3dfeb)!important}#transactionsSection #allTransactions .transaction-desc{color:var(--ink,#17324a)!important}#transactionsSection #allTransactions .transaction-info{color:var(--muted,#526a80)!important}#transactionsSection #allTransactions.nd-statement-list{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}html[data-theme="dark"] .nd-statement-day .transaction-desc{color:#f0f6fc!important}html[data-theme="dark"] .nd-statement-day .transaction-info{color:#c4d5e5!important}html[data-theme="dark"] .nd-statement-day .transaction{border-color:#446077}.nd-statement-note{margin:0 0 18px;padding:12px 14px;border-radius:10px;background:#eaf2fc;color:#38566f;font-size:12px;line-height:1.5}.nd-statement-day{margin:0 0 22px;border:1px solid #d3dfeb;border-radius:14px;overflow:hidden;background:var(--surface2,#f0f5fb);color:var(--ink,#17324a)}.nd-day-header{padding:15px 18px;background:var(--surface,#e9f1fa);border-bottom:1px solid #d3dfeb;display:flex;align-items:center;justify-content:space-between;gap:12px}.nd-day-header h3{font-size:15px;margin:0!important;color:#15334f!important;text-transform:capitalize;line-height:1.4}.nd-day-header small{font-size:11px;color:#526a80;white-space:nowrap}.nd-day-items{padding:0 18px}.nd-day-items .transaction:last-child{border-bottom:0}.nd-day-footer{padding:14px 18px;border-top:1px solid #d3dfeb;background:var(--surface,#e9f1fa);display:grid;gap:10px}.nd-day-footer>div{display:flex;justify-content:space-between;align-items:baseline;gap:14px}.nd-day-footer span{font-size:13px;line-height:1.4}.nd-day-footer strong{white-space:nowrap;font-size:15px}.nd-day-closing{padding-top:10px;border-top:1px solid #d3dfeb;font-weight:700}.nd-day-closing:first-child{border-top:0;padding-top:0}.nd-day-pending{color:#635a33}.nd-day-balance{color:#15497b}.dark .nd-statement-note,html[data-theme="dark"] .nd-statement-note{background:#183449;color:#d4e2ef}.dark .nd-statement-day,html[data-theme="dark"] .nd-statement-day{background:#13283b;color:#e5edf5;border-color:#446077}.dark .nd-day-header,html[data-theme="dark"] .nd-day-header{background:#193248;border-color:#446077}.dark .nd-day-header h3,html[data-theme="dark"] .nd-day-header h3{color:#f0f6fc!important}.dark .nd-day-header small,html[data-theme="dark"] .nd-day-header small{color:#c4d5e5}.dark .nd-day-footer,html[data-theme="dark"] .nd-day-footer{background:#102335;border-color:#446077}.dark .nd-day-closing,html[data-theme="dark"] .nd-day-closing{border-color:#446077}.dark .nd-day-pending,html[data-theme="dark"] .nd-day-pending{color:#ecd8a3}.dark .nd-day-balance,html[data-theme="dark"] .nd-day-balance{color:#8ec5ff}@media(max-width:520px){.nd-day-header{align-items:flex-start;flex-direction:column;gap:3px;padding:13px 14px}.nd-day-items{padding:0 14px}.nd-day-footer{padding:13px 14px}.nd-day-header h3{font-size:14px}.nd-day-footer strong{font-size:16px}}`;
+    dailyStyle.textContent = `
+      html[data-theme="dark"] #transactionsSection .nd-ledger-panel,
+      #transactionsSection .card.nd-ledger-statement-panel{
+        background:#0d2435!important;color:#eaf2fa!important;border:1px solid #34556e!important;box-shadow:none!important
+      }
+      html[data-theme="dark"] #transactionsSection #allTransactions{background:transparent!important;color:#eaf2fa!important}
+      html[data-theme="dark"] #transactionsSection #allTransactions .transaction-desc{color:#eaf2fa!important}
+      html[data-theme="dark"] #transactionsSection #allTransactions .transaction-info{color:#bdcede!important}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-statement-note{background:transparent!important;color:#bdcede!important;border:0!important;padding:0 0 14px;margin:0 0 10px;font-size:12px;line-height:1.5}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-statement-day{background:transparent!important;color:#eaf2fa!important;border:0!important;border-bottom:2px solid #5b7d98!important;border-radius:0!important;margin:0 0 24px;padding:0 0 20px;overflow:hidden}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-statement-day:last-child{border-bottom:0!important;margin-bottom:0;padding-bottom:0}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-header{background:transparent!important;border-bottom:1px solid #34556e!important;padding:12px 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-header h3{color:#a2d1ff!important;font-size:15px;line-height:1.4;text-transform:capitalize;margin:0!important}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-header small{color:#bdcede!important;font-size:11px;white-space:nowrap}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-items{padding:0!important;background:transparent!important}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .transaction{background:transparent!important;border-color:#34556e!important}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .transaction:last-child{border-bottom:0}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .transaction-desc{color:#f0f6fc!important}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .transaction-info{color:#bdcede!important}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-footer{background:transparent!important;border-top:1px solid #34556e!important;padding:14px 0 0;display:grid;gap:10px}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-footer>div{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-footer span{color:#dbe7f1!important;font-size:13px;line-height:1.4}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-footer strong{white-space:nowrap;font-size:15px}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-closing{padding-top:10px;border-top:1px solid #34556e;font-weight:700}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-closing:first-child{border-top:0;padding-top:0}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-balance{color:#a2d1ff!important}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .income{color:#52d993!important}
+      #transactionsSection .nd-ledger-statement-panel #allTransactions .expense{color:#ff8e96!important}
+      @media(max-width:520px){#transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-header{align-items:flex-start;flex-direction:column;gap:3px}#transactionsSection .nd-ledger-statement-panel #allTransactions .nd-day-header h3{font-size:14px}}
+    `;
     document.head.append(dailyStyle);
 
     window.ND_LEDGER_FILTERS_ACTIVE = true;
