@@ -7,7 +7,10 @@ const ctx={window:{},today:()=> '2026-10-13',el:id=>elements[id],Date,Intl,
  creditCards:[{id:'card',name:'Pagbank',due_day:15}],cardPurchases:[{id:'purchase',description:'Compra',installments:9}],
  cardInstallments:[{id:'oct',card_id:'card',purchase_id:'purchase',invoice_month:'2026-09-01',amount:20,paid:false,installment_number:6},{id:'nov',card_id:'card',purchase_id:'purchase',invoice_month:'2026-10-01',amount:20,paid:false,installment_number:7}],invoicePayments:[],
  escapeHtml:s=>s,money:n=>String(n)};
-vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
+vm.createContext(ctx);
+const cardStart=source.lastIndexOf('  function groupPurchaseDays(');
+vm.runInContext(source.slice(cardStart,source.indexOf('  const previous = window.renderCards;',cardStart)),ctx);
+vm.runInContext(source.slice(start,end),ctx);
 const h=ctx.window.ND_LEDGER_HELPERS;
 const data=[{id:'overdue',due_date:'2026-10-12',paid:false},{id:'today',due_date:'2026-10-13',paid:false},{id:'day7',due_date:'2026-10-19',paid:false},{id:'day8',due_date:'2026-10-20',paid:false},{id:'future',due_date:'2029-05-13',paid:false},{id:'paid',due_date:'2026-09-01',date:'2026-10-05',paid:true}];
 const matches=f=>data.filter(x=>h.matchesLedger(x,f,'2026-10','2026-10-12','2026-10-13','2026-10-13')).map(x=>x.id);

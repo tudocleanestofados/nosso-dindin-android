@@ -152,11 +152,16 @@
       const due = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(Date.UTC(year, month, dueDay)));
       const total = invoice.items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
       const paid = invoice.items.every(item => item.paid);
-      const details = invoice.items.map(item => {
-        const purchase = purchasesById.get(item.purchase_id);
-        const number = Number(item.installment_number || 1);
-        const count = Number(purchase?.installments || 1);
-        return `<div class="nd-ledger-invoice-item"><span>${escapeHtml(purchase?.description || 'Compra no cartão')}${count > 1 ? ` (${number}/${count})` : ''}</span><strong>${money(Number(item.amount || 0))}</strong></div>`;
+      const datedItems = invoice.items.map(item => ({ ...item, total_amount: item.amount,
+        purchase_date: purchasesById.get(item.purchase_id)?.purchase_date }));
+      const details = window.ND_CARD_DAYS.groupPurchaseDays(datedItems).map(group => {
+        const rows = group.purchases.map(item => {
+          const purchase = purchasesById.get(item.purchase_id);
+          const number = Number(item.installment_number || 1);
+          const count = Number(purchase?.installments || 1);
+          return `<div class="nd-ledger-invoice-item"><span>${escapeHtml(purchase?.description || 'Compra no cartão')}${count > 1 ? ` (${number}/${count})` : ''}</span><strong>${money(Number(item.amount || 0))}</strong></div>`;
+        }).join('');
+        return `<div class="nd-card-day"><h5>${group.day ? group.day.split('-').reverse().join('/') : 'Sem data informada'}</h5>${rows}<div class="nd-card-day-total">Total na fatura neste dia <strong class="sensitive-money">${money(group.totalCents / 100)}</strong></div></div>`;
       }).join('');
       return `<div class="nd-ledger-invoice"><div class="nd-ledger-invoice-head"><div><strong>${escapeHtml(card?.name || 'Cartão')}</strong><small>Fatura com vencimento em ${due}</small></div><strong>${money(total)}</strong></div><small>${paid ? 'Paga' : 'Pendente'}</small>${details}</div>`;
     }).join('') : '<div class="empty">Nenhuma fatura no filtro selecionado.</div>';
@@ -580,6 +585,10 @@
     <label>Número dessa parcela</label><input id="ndEditPurchaseNext" type="number" min="1" max="120">`);
   modal.querySelector('small').textContent = 'O mês informado é o vencimento no banco. As seguintes ficam nos meses seguintes. Parcelas pagas são preservadas.';
   modal.querySelector('.primary').insertAdjacentHTML('afterend', '<button class="secondary" id="ndDeletePurchase" type="button">Excluir parcelas selecionadas</button>');
+  const actions = document.createElement('div');
+  actions.className = 'nd-purchase-edit-actions';
+  modal.querySelector('.modal-content').append(actions);
+  actions.append(modal.querySelector('.primary'), el('ndDeletePurchase'));
   function pendingItems() { return cardInstallments.filter(i => i.purchase_id === el('editCardPurchaseId').value && !i.paid).sort((a,b) => a.installment_number-b.installment_number); }
   function selectedItem() { return pendingItems().find(i => i.id === el('ndEditPurchaseItem').value); }
   function fillSelected() {
@@ -688,4 +697,75 @@
     } catch (error) { alert('Erro ao editar: ' + error.message); }
     finally { saving = false; }
   };
+})();
+
+/* Card purchases in chronological day groups; editor above the app navigation. */
+(function () {
+  function groupPurchaseDays(purchases) {
+    const days = new Map();
+    for (const purchase of purchases) {
+      const raw = String(purchase.purchase_date || '').slice(0, 10);
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
+      if (!days.has(day)) days.set(day, { day, purchases: [], totalCents: 0 });
+      const group = days.get(day);
+      group.purchases.push(purchase);
+      group.totalCents += Math.round(Number(purchase.total_amount || 0) * 100);
+    }
+    return [...days.values()].sort((a, b) => (a.day || '9999').localeCompare(b.day || '9999'));
+  }
+  window.ND_CARD_DAYS = { groupPurchaseDays };
+  const previous = window.renderCards;
+  window.renderCards = function () {
+    const result = previous.apply(this, arguments);
+    document.querySelectorAll('#cardsDetailedOverview .nd-card-detail').forEach(detail => {
+      const rows = [...detail.querySelectorAll('.nd-card-purchase-row[data-purchase-id]')];
+      if (!rows.length) return;
+      const parent = rows[0].parentElement;
+      const rowById = new Map(rows.map(row => [row.dataset.purchaseId, row]));
+      const purchases = cardPurchases.filter(p => rowById.has(p.id));
+      parent.querySelectorAll('.nd-card-day').forEach(day => day.remove());
+      for (const group of groupPurchaseDays(purchases)) {
+        const section = document.createElement('div');
+        section.className = 'nd-card-day';
+        const heading = document.createElement('h5');
+        heading.textContent = group.day ? group.day.split('-').reverse().join('/') : 'Sem data informada';
+        section.append(heading);
+        group.purchases.forEach(p => section.append(rowById.get(p.id)));
+        const total = document.createElement('div');
+        total.className = 'nd-card-day-total';
+        total.innerHTML = `Total de compras do dia <strong class="sensitive-money">${money(group.totalCents / 100)}</strong>`;
+        section.append(total);
+        parent.append(section);
+      }
+    });
+    return result;
+  };
+  const style = document.createElement('style');
+  style.textContent = `
+    :is(#cardsSection,#transactionsSection) .nd-card-day{padding:14px 0;border-bottom:2px solid #5b7d98}
+    :is(#cardsSection,#transactionsSection) .nd-card-day:last-child{border-bottom:0}
+    :is(#cardsSection,#transactionsSection) .nd-card-day h5{margin:0 0 8px;font-size:16px;color:var(--ink)}
+    :is(#cardsSection,#transactionsSection) .nd-card-day-total{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:14px}
+    :is(#cardsSection,#transactionsSection) .nd-card-day .nd-purchase-side{flex-shrink:0}
+    html[data-theme="dark"] :is(#cardsSection,#transactionsSection) .nd-card-day h5{color:#a2d1ff!important}
+    html[data-theme="dark"] :is(#cardsSection,#transactionsSection) .nd-card-day-total{color:#bdcede!important}
+    #editCardPurchaseModal{z-index:7000!important;overflow:hidden!important}
+    #editCardPurchaseModal.hidden{display:none!important}
+    #editCardPurchaseModal .modal-content{position:relative;box-sizing:border-box;max-height:calc(100dvh - 40px)!important;overflow-y:auto!important;overscroll-behavior:contain;padding:24px!important}
+    #editCardPurchaseModal label{display:block!important;line-height:1.4;margin:16px 0 8px!important}
+    #editCardPurchaseModal input:not([type="hidden"]),#editCardPurchaseModal select{display:block;width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box;font-size:16px!important;min-height:48px;height:auto!important;margin:0!important}
+    #editCardPurchaseModal small{display:block!important;line-height:1.6!important;margin:18px 0!important}
+    #editCardPurchaseModal .nd-purchase-edit-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:20px;clear:both}
+    #editCardPurchaseModal .nd-purchase-edit-actions button{position:static!important;float:none!important;display:block!important;width:100%!important;max-width:100%!important;min-height:48px;height:auto!important;margin:0!important;white-space:normal!important;line-height:1.4!important;box-sizing:border-box}
+    #editCardPurchaseModal .close{position:relative!important;min-width:44px;min-height:44px;margin:0 0 8px 12px!important}
+    html[data-theme="dark"] #editCardPurchaseModal .modal-content{background:#132b3e!important;color:#eaf2fa!important;color-scheme:dark}
+    html[data-theme="dark"] #editCardPurchaseModal input,html[data-theme="dark"] #editCardPurchaseModal select{background:#0d2435!important;color:#eaf2fa!important;border:1px solid #5b7d98!important}
+    html[data-theme="dark"] #editCardPurchaseModal label,html[data-theme="dark"] #editCardPurchaseModal small{color:#bdcede!important}
+    html[data-theme="dark"] #editCardPurchaseModal h2,html[data-theme="dark"] #editCardPurchaseModal .close{color:#eaf2fa!important}
+    @media(max-width:800px){
+      #editCardPurchaseModal{padding:0!important;align-items:stretch!important;background:var(--surface)!important}
+      #editCardPurchaseModal .modal-content{width:100%!important;max-width:none!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;border-radius:0!important;padding:calc(16px + env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))!important;-webkit-overflow-scrolling:touch}
+    }
+  `;
+  document.head.append(style);
 })();
