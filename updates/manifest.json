@@ -1,8 +1,8 @@
 {
   "app_id": "com.nossodindin.app",
   "native_version": "",
-  "web_version": "web-8",
-  "zip_url": "https://github.com/tudocleanestofados/nosso-dindin-android/releases/download/web-8/dist.zip",
-  "sha256": "55ae2eb4c49809cc091f55372e617077be26721839a6665e7129b9a259995156",
+  "web_version": "web-9",
+  "zip_url": "https://github.com/tudocleanestofados/nosso-dindin-android/releases/download/web-9/dist.zip",
+  "sha256": "6e65f412b83cd5efcf8184e695042650280e83bfa9b3e6257b9a857ac2664309",
   "apk_url": ""
 }
