@@ -107,7 +107,7 @@ async function actorName(actorId: string | null) {
   try {
     const { data } = await supabase.auth.admin.getUserById(actorId);
     const u = data?.user;
-    const full = String(u?.user_metadata?.full_name || u?.user_metadata?.name || "").trim();
+    const full = String(u?.user_metadata?.display_name || u?.user_metadata?.full_name || u?.user_metadata?.name || "").trim();
     if (full) return full;
     const email = String(u?.email || "");
     return email ? email.split("@")[0] : "Usuário";
