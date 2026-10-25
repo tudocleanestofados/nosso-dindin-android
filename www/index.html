@@ -1540,7 +1540,7 @@ body.auth-required main{visibility:hidden !important}
 
 <header class="app-header">
   <div class="greeting">
-    <h1>Olá, Rildo! <span>👋</span></h1>
+    <h1>Olá, Usuário! <span>👋</span></h1>
     <small>Aqui está um resumo da sua vida financeira.</small>
   </div>
   <div id="topActions" class="top-actions">
@@ -1554,7 +1554,7 @@ body.auth-required main{visibility:hidden !important}
     <button class="top-link" onclick="showSection('assistantSection',document.querySelectorAll('.nav button')[7])">
       <svg class="spark" viewBox="0 0 24 24"><path d="m12 2 1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7z"/></svg>Assistente
     </button>
-    <button class="avatar profile-click" onclick="openProfileModal()">RM</button>
+    <button class="avatar profile-click" onclick="openProfileModal()">U</button>
   </div>
 </header>
 
@@ -1902,7 +1902,7 @@ body.auth-required main{visibility:hidden !important}
   <button onclick="showSection('notificationsSection',this);loadDueNotifications();loadMovementAlerts()"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span>Avisos</span></button>
   <button onclick="showSection('assistantSection',this)"><svg viewBox="0 0 24 24"><path d="m12 2 1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg><span>Assistente</span></button>
   <button onclick="showSection('settingsSection',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.5 6A7 7 0 0 0 9 7.1l-2.4-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1A7 7 0 0 0 10.5 18l.3 2.6h4L15 18a7 7 0 0 0 1.5-1.1l2.4 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg><span>Configurações</span></button>
-  <button class="profile profile-click" onclick="openProfileModal()"><span>RM</span><div><b id="sideProfileName">Rildo Matos</b><small id="sideProfileGroup">Família</small></div></button>
+  <button class="profile profile-click" onclick="openProfileModal()"><span>U</span><div><b id="sideProfileName">Usuário</b><small id="sideProfileGroup">Família</small></div></button>
 </aside>
 <div id="invoicePayModal" class="modal hidden"><div class="modal-content" style="max-width:460px">
 <button class="close" onclick="closeInvoicePayModal()">×</button><h2>Pagar fatura</h2>
@@ -1914,7 +1914,7 @@ body.auth-required main{visibility:hidden !important}
 </div></div>
 <div id="profileModal" class="modal hidden"><div class="modal-content" style="max-width:430px">
 <button class="close" onclick="closeProfileModal()">×</button><h2>Meu perfil</h2>
-<div class="profile-editor-avatar" id="profileEditorAvatar">RM</div>
+<div class="profile-editor-avatar" id="profileEditorAvatar">U</div>
 <label>Nome</label><input id="profileNameInput" placeholder="Seu nome">
 <label>Foto do perfil</label><input id="profilePhotoInput" type="file" accept="image/*" onchange="previewProfilePhoto(this)">
 <small>A foto fica salva neste aparelho. Cada usuário pode usar seu próprio perfil.</small>
@@ -4560,7 +4560,7 @@ let transactionViewFilter=null;
 let sensitiveHidden=localStorage.getItem('finance_hide_values')==='1';
 let aiConversation=JSON.parse(localStorage.getItem('finance_ai_chat')||'[]');
 
-function userDisplayName(){return localStorage.getItem('finance_profile_name')||((currentUser?.email||'Rildo').split('@')[0].replace(/[._-]+/g,' ')).replace(/\b\w/g,c=>c.toUpperCase())||'Rildo'}
+function userDisplayName(){return String(currentUser?.user_metadata?.display_name||'').trim()||String(currentUser?.email||'').split('@')[0].trim()||'Usuário'}
 function userInitials(){return userDisplayName().split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
 function updateGreeting(){
  const h=new Date().getHours(), sal=h<12?'Bom dia':h<18?'Boa tarde':'Boa noite', name=userDisplayName();
@@ -5811,7 +5811,7 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
    const dash=document.querySelector('#dashboardSection .model-dashboard');
    if(dash){
      const g=document.createElement('div');g.className='ndm-greeting';
-     g.innerHTML='<div><h2>Olá, <span id="ndmName">Rildo</span>! 👋</h2><small>Seu resumo financeiro de hoje.</small></div><select class="ndm-month"><option>Setembro de 2026</option></select>';
+     g.innerHTML='<div><h2>Olá, <span id="ndmName">Usuário</span>! 👋</h2><small>Seu resumo financeiro de hoje.</small></div><select class="ndm-month"><option>Setembro de 2026</option></select>';
      dash.insertBefore(g,dash.firstChild);
      const hero=dash.querySelector('.hero-row'), actions=hero?.querySelector('.hero-actions'), summary=dash.querySelector('.summary-row');
      if(actions&&summary) summary.after(actions);
@@ -5837,7 +5837,7 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
    bottom.querySelector('[data-section="assistantSection"]').onclick=()=>nav('assistantSection',7);
    bottom.querySelector('[data-section="notificationsSection"]').onclick=()=>nav('notificationsSection',6);
 
-   function name(){try{const n=(typeof userDisplayName==='function'?userDisplayName():'Rildo')||'Rildo';const e=document.getElementById('ndmName');if(e)e.textContent=String(n).trim().split(/\s+/)[0]||'Rildo'}catch(e){}}
+   function name(){try{const n=(typeof userDisplayName==='function'?userDisplayName():'Usuário')||'Usuário';const e=document.getElementById('ndmName');if(e)e.textContent=String(n).trim().split(/\s+/)[0]||'Usuário'}catch(e){}}
    name();setTimeout(name,800);
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',build);else build();
@@ -5852,7 +5852,7 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
     if(!el)return;
     var hora=new Date().getHours();
     var saudacao=hora<12?'Bom dia':(hora<18?'Boa tarde':'Boa noite');
-    var nome='Rildo';
+    var nome='Usuário';
     try{
       if(typeof userDisplayName==='function'){
         var n=userDisplayName();
@@ -6701,7 +6701,7 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
     btn.type='button';
     btn.className='ndm-mobile-profile';
     btn.innerHTML=
-      '<span class="ndm-mobile-profile-avatar">RM</span>'+
+      '<span class="ndm-mobile-profile-avatar">U</span>'+
       '<span class="ndm-mobile-profile-text"><b>Meu perfil</b><small>Editar nome e foto</small></span>';
     btn.addEventListener('click',()=>{
       document.querySelector('.ndm-drawer')?.classList.remove('open');
@@ -6725,7 +6725,7 @@ html[data-theme="dark"] #notificationsSection .notification small{color:#c7d6e4!
     const avatar=btn.querySelector('.ndm-mobile-profile-avatar');
     if(!avatar) return;
     const photo=localStorage.getItem('finance_profile_photo')||'';
-    let initials='RM';
+    let initials='U';
     try{
       if(typeof window.userInitials==='function') initials=window.userInitials()||initials;
     }catch(_){}
@@ -7576,36 +7576,13 @@ html[data-theme="dark"] #accountsSection > .card:first-child h3{
 
 <script id="v68-user-greeting-fix">
 (function(){
-  function titleCaseName(v){
-    return String(v||'').trim().toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
-  }
-
   function fallbackNameFromEmail(){
-    const email=String(currentUser?.email||'').trim().toLowerCase();
-    if(email==='monica.provasi@gmail.com') return 'Monica Provasi';
-    if(email==='rildoomatos@gmail.com') return 'Rildo Matos';
-
-    const local=email.split('@')[0].replace(/[._-]+/g,' ').trim();
-    return local ? titleCaseName(local) : 'Usuário';
+    return String(currentUser?.email||'').split('@')[0].trim() || 'Usuário';
   }
 
   window.userDisplayName=function(){
-    const uid=currentUser?.id||'';
-    const email=String(currentUser?.email||'').trim().toLowerCase();
-    const key=uid ? 'finance_profile_name_'+uid : '';
-
-    let saved=key ? String(localStorage.getItem(key)||'').trim() : '';
-
-    // Remove migração incorreta antiga: Monica não pode herdar o nome do Rildo.
-    if(email==='monica.provasi@gmail.com' && /^rildo\b/i.test(saved)){
-      localStorage.removeItem(key);
-      saved='';
-    }
-
-    if(saved) return saved;
-    const meta=currentUser?.user_metadata||{};
-    const metaName=String(meta.full_name||meta.name||'').trim();
-    return metaName || fallbackNameFromEmail();
+    const displayName=String(currentUser?.user_metadata?.display_name||'').trim();
+    return displayName || fallbackNameFromEmail();
   };
 
   window.userInitials=function(){
